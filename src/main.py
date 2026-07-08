@@ -1,12 +1,15 @@
 import os
 import time
-import datetime
+from datetime import datetime, timezone, timedelta
 import requests
+from braket.circuits import Circuit
+from braket.devices import LocalSimulator
 import matplotlib as plt
 import psutil
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
-from datetime import timedelta
+
+LOCALSTACK_URL = "http://localhost:4566"
 
 class ExperimentMonitor:
 
@@ -32,12 +35,19 @@ class ExperimentMonitor:
 
         print(f"Role: {self.role_arn}")
         print(f"Region: {self.region_name}")
-        print(f"Region: {self.region_name}")
         print(f"Start Time: {self.start_time}")
         
         try: 
-            self.sts_client = boto3.client("sts", region_name=self.region_name)
-            self.s3_client = boto3.client('s3', **self._get_credentials_dict())
+            self.sts_client = boto3.client(
+                "sts", 
+                **self.__get_credentials_dict(),
+                endpoint_url=LOCALSTACK_URL,
+                )
+            self.s3_client = boto3.client(
+                's3', 
+                **self.__get_credentials_dict(), 
+                endpoint_url=LOCALSTACK_URL,
+                )
 
             self.assumed_role = self.sts_client.assume_role(
                 RoleArn=self.role_arn,
@@ -45,7 +55,7 @@ class ExperimentMonitor:
             )
             self.creds = self.assumed_role["Credentials"]
 
-            self.s3_client.create_bucket(f"{self._assumed_role['AssumedRoleUser']['AssumedRoleId']}'s Bucket")
+            #self.s3_client.create_bucket(f"{self.assumed_role['AssumedRoleUser']['AssumedRoleId']}'s Bucket")
 
             print(f"Managing Buckets: {', '.join(self.bucket_list)}")
             print("Successfully assumed monitoring IAM role and experiment.")
@@ -57,10 +67,10 @@ class ExperimentMonitor:
     def __get_credentials_dict(self):
         """Helper to pass assumed role tokens to clients/resources."""
         return {
-            "aws_access_key_id": self.creds["AccessKeyId"],
-            "aws_secret_access_key": self.creds["SecretAccessKey"],
-            "aws_session_token": self.creds["SessionToken"],
-            "region_name": self.region_name
+            "aws_access_key_id": "test", #self.creds["AccessKeyId"],
+            "aws_secret_access_key": "test", #self.creds["SecretAccessKey"],
+            "aws_session_token": "test",#self.creds["SessionToken"],
+            "region_name": "us-east-1"#self.region_name
         }
 
     def __get_live_metrics(self):
@@ -69,7 +79,7 @@ class ExperimentMonitor:
             "I/O latency": time.time() - self.start_time,
             "CPU_usage": psutil.cpu_percent(interval=0.1), 
             "RAM_usage": psutil.virtual_memory().percent,
-            "Datetime": datetime.datetime.now().isoformat()
+            "Datetime": datetime.now(timezone.utc).isoformat()
         }
     
     def log_to_server(self, ec2=False, braket=False):
@@ -105,8 +115,7 @@ class ExperimentMonitor:
     def __monitor__vm(self):
         try:
             # Use assumed credentials to create client
-            s3_client = boto3.client('s3', **self.__get_credentials_dict())
-            s3_client.list_buckets() 
+            self.s3_client.list_buckets() 
             print("S3 tracking successful.")
             
             s3_resource = boto3.resource('s3', **self.__get_credentials_dict())
@@ -121,63 +130,96 @@ class ExperimentMonitor:
             print(f"S3 Monitoring Error: {e}")
             return None
 
-    def __monitor_ec2_vm(self):
+    def monitor_ec2_vm(self):
         try:
-            ec2_client = boto3.client('ec2', self.__get_credentials_dict())
+            ec2_client = boto3.client(
+                'ec2', 
+                **self.__get_credentials_dict(), 
+                endpoint_url=LOCALSTACK_URL,
+            )
             ec2_client.describe_instances() 
             print("EC2 tracking successful.")
 
-            ec2_resource = boto3.resource('ec2', self.__get_credentials_dict())
-            return {
+            ec2_resource = boto3.resource(
+                'ec2', 
+                **self.__get_credentials_dict(), 
+                endpoint_url=LOCALSTACK_URL,
+            )
+            result = {
                 "infrastructure_metrics": {
                     "EC2_resource": ec2_resource,
                     "vm_metrics": self.__get_live_metrics(),
                     "cw_metrics": {}
                 }
             }
+            print(result)
+
         except (NoCredentialsError, ClientError, EndpointConnectionError) as e:
             print(f"EC2 Monitoring Error: {e}")
             return None
     
-    def __monitor_braket_vm(self):
+    def monitor_braket_vm(self):
         try:
-            braket_client = boto3.client('braket', **self.__get_credentials_dict())
+            braket_client = boto3.client(
+                'braket', 
+                **self.__get_credentials_dict(), 
+                endpoint_url=LOCALSTACK_URL,
+            )
             braket_client.search_devices(filters=[]) 
             print("Braket tracking successful.")
 
-            return {
+            result = {
                 "infrastructure_metrics": {
                     "Braket_client": braket_client, 
                     "vm_metrics": self.__get_live_metrics(),
                     "cw_metrics": {}
                 }
             }
+            print(result)
+
         except (NoCredentialsError, ClientError, EndpointConnectionError) as e:
             print(f"Braket Monitoring Error: {e}")
             return None
 
-
 class InfrastructureMonitor:
 
-    def __init__(self, role_arn: str, instance: str, region_name: str = "us-east-1"):
-        if not role_arn or not instance:
-            raise ValueError("Missing required variables: role_arn or buckets.")
+    def __init__(self, role_arn: str, region_name: str = "us-east-1"):
+
             
         self.role_arn = role_arn
-        self.instance = instance
         self.region_name = region_name
         self.start_time = time.time()
 
         print(f"Role: {self.role_arn}")
         print(f"Region: {self.region_name}")
-        print(f"Region: {self.region_name}")
         print(f"Start Time: {self.start_time}")
         
         try: 
-            self.sts_client = boto3.client("sts", region_name=self.region_name)
-            self.ec2_client = boto3.client("ec2", **self._get_credentials_dict())
-            self.cw_client = boto3.client("cloudwatch", **self._get_credentials_dict())
-            self.braket_client = boto3.client("braket", **self._get_credentials_dict())
+
+            self.sts_client = boto3.client(
+                'sts', 
+                **self.__get_credentials_dict(), 
+                endpoint_url=LOCALSTACK_URL,
+            )
+            self.ec2_client = boto3.client(
+                'ec2', 
+                endpoint_url=LOCALSTACK_URL,
+                **self.__get_credentials_dict()
+            )
+            self.cw_client = boto3.client(
+                'cloudwatch', 
+                **self.__get_credentials_dict(), 
+                endpoint_url=LOCALSTACK_URL,
+            )
+            self.braket_client = boto3.client(
+                'braket', 
+                **self.__get_credentials_dict(), 
+                endpoint_url=LOCALSTACK_URL,
+            )
+
+            self.ec2_paginator = self.ec2_client.get_paginator
+            self.cw_paginator = self.cw_client.get_paginator
+            self.braket_paginator = self.braket_client.get_paginator
 
             self.assumed_role = self.sts_client.assume_role(
                 RoleArn=self.role_arn,
@@ -185,74 +227,183 @@ class InfrastructureMonitor:
             )
             self.creds = self.assumed_role["Credentials"]
 
-            print(f"Managing Instance: {self.instance}")
+            print(f"Managing Instance: ")
             print("Successfully assumed monitoring IAM role and EC2 instance.")
 
         except Exception as e:
             print(f"Failed to assume IAM role: {e}")
             raise
 
-        def get_instance_attributes(self):
-            get_types = self.ec2_client.describe_instance_types(
-                InstanceTypes=['t3.micro', 'm5.large']
+    def get_instance_attributes(self):
+        paginator = None
+
+        if (self.ec2_paginator("describe_instance_types")):
+            paginated = self.ec2_paginator("describe_instance_types")
+
+        get_types = self.ec2_client.describe_instance_types(
+            InstanceTypes=['t3.micro', 'm5.large']
+        )
+
+        result = None
+
+        for instance in self.get_types['InstanceTypes']:
+
+            result = {
+                "Instance": f"{instance['InstanceType']}",
+                "vCPUs": f"{instance['VCpuInfo']['DefaultVCpus']}",
+                "Memory": f"{instance['MemoryInfo']['SizeInMiB']} MiB",
+                "Processor": f"{instance['ProcessorInfo']}",
+                "GPU": f"{instance['GpuInfo']}",
+                "Hypervisor": f"{instance['Hypervisor']}"
+            }
+
+        print(result)
+            
+    def get_ec2_infrastructure_metrics(self):
+
+        #get_instance = requests.get('http://169.254.169.254/latest/meta-data/instance-id')
+        #instance_id = get_instance.text
+
+        infra_metrics = ['CPUUtilization', 'NetworkIn', 'NetworkOut', 'DiskReadOps', 'DiskWriteOps']
+        infra_results = []
+
+        usage_results = {}
+
+        for metric in infra_metrics:
+            average = 0
+            metrics = self.cw_client.get_metric_statistics(
+                Namespace='AWS/EC2',
+                MetricName=metric,
+                Dimensions=[{'Name': 'InstanceId', 'Value': 'i-0123456789abcdef0'}],
+                StartTime=datetime.now(timezone.utc) - timedelta(minutes=5),
+                EndTime=datetime.now(timezone.utc),
+                Period=300,
+                Statistics=['Average']
             )
 
-            for instance in self.get_types['InstanceTypes']:
-                return {
-                    "Instance": f"{instance['InstanceType']}",
-                    "vCPUs": f"{instance['VCpuInfo']['DefaultVCpus']}",
-                    "Memory": f"{instance['MemoryInfo']['SizeInMiB']} MiB",
-                    "Processor": f"{instance['ProcessorInfo']}",
-                    "GPU": f"{instance['GpuInfo']}",
-                    "Hypervisor": f"{instance['Hypervisor']}"
+            if not metrics['Datapoints']:
+                metrics['Average'] = 0.0
+
+            else:
+                datapoints_count = len(metrics['Datapoints'])
+                sum_datapoints = []
+                for i in range(0, datapoints_count):
+                    sum_datapoints.append(metrics['Datapoints'][i]['Average'])
+                average = sum(sum_datapoints) / len(sum_datapoints)
+
+            metrics[f'${metric} Summed Average'] = average
+            
+            infra_results.append(metrics)
+
+        ec2_usage = self.ec2_client.describe_instances(
+                Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
+            )
+
+        # add resoucrse usage and spends for braket later
+
+        reservations = ec2_usage.get('Reservations', [])
+
+        for reservation in reservations:
+            instances = reservation.get('Instances', [])
+            for instance in instances:
+                
+                launch_time = instance.get("LaunchTime")
+                if not launch_time:
+                    continue
+                    
+                current_time = datetime.now(timezone.utc)
+                compute_time_used = current_time - launch_time
+
+                
+                usage_results["EC2_usage"] = {
+                    'instance_id': instance.get("InstanceId"),
+                    'instance_type': instance.get("InstanceType"),
+                    'time_used': str(compute_time_used)  
                 }
-            
-        def get_ec2_infrastructure_metrics(self):
-
-            get_instance = requests.get('http://169.254.169.254/latest/meta-data/instance-id')
-            instance_id = get_instance.text
-
-            metrics = ['CPUUtilization', 'NetworkIn', 'NetworkOut', 'DiskReadOps', 'DiskWriteOps']
-            results = {}
-
-            for metric in metrics:
-                ec2_metrics = self.cw_client.get_metric_statistics(
-                    Namespace='AWS/EC2',
-                    MetricName=metric,
-                    Dimensions=[{'Name': 'InstanceId', 'Value': instance_id}],
-                    StartTime=datetime.utcnow() - timedelta(minutes=5),
-                    EndTime=datetime.utcnow(),
-                    Period=300,
-                    Statistics=['Average']
-                )
-                results[ec2_metrics['MetricName']] = ec2_metrics
-
-            return results
         
-        def get_braket_infrastructure_metrics(self, run_result):
+        print(infra_results)
+        
+    def __get_credentials_dict(self):
+        """Helper to pass assumed role tokens to clients/resources."""
+        return {
+            "aws_access_key_id": "test", #self.creds["AccessKeyId"],
+            "aws_secret_access_key": "test", #self.creds["SecretAccessKey"],
+            "aws_session_token": "test",#self.creds["SessionToken"],
+            "region_name": "us-east-1"#self.region_name
+        }
+        
+    def get_braket_infrastructure_metrics(self, run_result):
 
-            results = {}
+        usage_results = {}
 
-            tasks = {
-                'get_quantum_task': self.braket_client.get_quantum_task, 
-                'search_quantum_tasks': self.braket_client.search_quantum_tasks, 
-                'get_job': self.braket_client.get_job
-            }
+        infra_results = {}
+
+        tasks = {
+            'get_quantum_task': self.braket_client.get_quantum_task, 
+            'search_quantum_tasks': self.braket_client.search_quantum_tasks, 
+            'get_job': self.braket_client.get_job
+        }
+        
+        tasks_config = {
+            'get_quantum_task': lambda: {"quantumTaskArn": run_result.id}, 
+            'search_quantum_tasks': lambda: {"filters": [{'name': 'quantumTaskArn', 'values': [run_result.id], 'operator': 'EQUAL'}]}, 
+            'get_job': lambda: {"jobArn": run_result.arn}
+        }
+
+        for task, task_value in tasks.items():
+            result = task_value(
+                **tasks_config[task]()
+            )
+            infra_results[task] = result
+
+        braket_usage = self.braket_client.search_spending_limits(
+            maxResults=5,
+            filters=[
+                {
+                    'name': 'deviceArn',
+                    'values': [run_result.id],
+                    'operator': 'EQUAL'
+                }
+            ]
+        )
+
+        limits_list = braket_usage['spendingLimits']
+
+        for limit in limits_list:
+
+            limit_arn = limit['spendingLimitArn']
+            device = limit['deviceArn']
+            created_date = limit['createdAt']
             
-            tasks_config = {
-                'get_quantum_task': lambda: {"quantumTaskArn": run_result.id}, 
-                'search_quantum_tasks': lambda: {"filters": [{'name': 'quantumTaskArn', 'operator': 'EQUAL', 'values': [run_result.id]}]}, 
-                'get_job': lambda: {"jobArn": run_result.arn}
-            }
+            start_time = limit['timePeriod']['startAt']
+            end_time = limit['timePeriod']['endAt']
+            
+            max_budget = float(limit['spendingLimit'])
+            queued_cost = float(limit['queuedSpend'])
+            actual_spent = float(limit['totalSpend'])
+            
+            remaining_budget = max_budget - (actual_spent + queued_cost)
+            if (remaining_budget <= max_budget - 100):
+                braket_usage['spendingLimits']['Warning'] = True
+            
+            braket_usage['trackingPeriod'] = (start_time, end_time)           
+            
+        usage_results['Braket_usage'] = braket_usage
 
-            for task, task_value in tasks.items():
-                result = task_value(
-                    **tasks_config[task]()
-                )
-                results[task] = result
-
-            return results
-
+        print(infra_results, usage_results)
 
             
-     
+experiment_agent = ExperimentMonitor( 
+    role_arn="arn:aws:iam::000000000000:role/local-mock-role", 
+    bucket="Test",
+    region_name="us-east-1"
+    )
+infrastructure_agent = InfrastructureMonitor(
+    role_arn="arn:aws:iam::000000000000:role/local-mock-role", 
+    region_name="us-east-1"
+)
+
+print("----EC2 VM MONITOR----")
+#experiment_agent.monitor_ec2_vm()
+print("----EC2 Resources MONITOR----")
+infrastructure_agent.get_ec2_infrastructure_metrics()

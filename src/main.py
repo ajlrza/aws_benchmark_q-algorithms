@@ -167,8 +167,6 @@ class InfrastructureMonitor:
         self.instance = instance
         self.region_name = region_name
         self.start_time = time.time()
-        self.bucket_list = []
-        self.bucket_list.append(self.bucket)
 
         print(f"Role: {self.role_arn}")
         print(f"Region: {self.region_name}")
@@ -179,14 +177,13 @@ class InfrastructureMonitor:
             self.sts_client = boto3.client("sts", region_name=self.region_name)
             self.ec2_client = boto3.client("ec2", **self._get_credentials_dict())
             self.cw_client = boto3.client("cloudwatch", **self._get_credentials_dict())
+            self.braket_client = boto3.client("braket", **self._get_credentials_dict())
 
             self.assumed_role = self.sts_client.assume_role(
                 RoleArn=self.role_arn,
                 RoleSessionName="InstanceMonitor",
             )
             self.creds = self.assumed_role["Credentials"]
-
-            self.s3_client.create_bucket(f"{self._assumed_role['AssumedRoleUser']['AssumedRoleId']}'s Bucket")
 
             print(f"Managing Instance: {self.instance}")
             print("Successfully assumed monitoring IAM role and EC2 instance.")
@@ -232,6 +229,30 @@ class InfrastructureMonitor:
 
             return results
         
-        def get_braket_infrastructure_metrics(self):
-            pass
+        def get_braket_infrastructure_metrics(self, run_result):
+
+            results = {}
+
+            tasks = {
+                'get_quantum_task': self.braket_client.get_quantum_task, 
+                'search_quantum_tasks': self.braket_client.search_quantum_tasks, 
+                'get_job': self.braket_client.get_job
+            }
+            
+            tasks_config = {
+                'get_quantum_task': lambda: {"quantumTaskArn": run_result.id}, 
+                'search_quantum_tasks': lambda: {"filters": [{'name': 'quantumTaskArn', 'operator': 'EQUAL', 'values': [run_result.id]}]}, 
+                'get_job': lambda: {"jobArn": run_result.arn}
+            }
+
+            for task, task_value in tasks.items():
+                result = task_value(
+                    **tasks_config[task]()
+                )
+                results[task] = result
+
+            return results
+
+
+            
      

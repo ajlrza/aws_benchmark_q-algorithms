@@ -2,37 +2,45 @@ import os
 import time
 import json
 import base64
-from datetime import datetime, timezone, timedelta
+import inspect
+import threading
 import requests
-from braket.circuits import Circuit
-from braket.devices import LocalSimulator
-import matplotlib as plt
 import psutil
 import boto3
+import matplotlib as plt
+from functools import wraps
+from typing import Callable
+from braket.circuits import Circuit
+from braket.devices import LocalSimulator
+from datetime import datetime, timezone, timedelta
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 
 class ExperimentMonitor:
 
-    '''
-        agent = ExperimentMonitor(
-        role_arn="arn:aws:iam::123456789012:role/MyS3AccessRole",
-        bucket_names=["my-app-data-bucket", "my-app-logs-bucket"]
-        )
-        agent.log_to_bucket(ec2=True, braket=True)
-        agent.generate_viz()
-    '''
-
-    def __init__(self, sts_client: object, access_key: str, secret_key: str, region_name: str = "us-east-1"):
+    def __init__(self, 
+                 sts_client: object, 
+                 access_key: str, 
+                 secret_key: str, 
+                 ):
+        
         if not sts_client:
             raise ValueError("Missing required variables: sts_client")
-            
+        
+        self.infra_monitor = InfrastructureMonitor(access_key, secret_key)
         self.sts_client = sts_client
         self.identity = self.sts_client.get_caller_identity()
-        self.region_name = region_name
+        self.region_name = "us-east-1"
 
         self.access_key = access_key
         self.secret_key = secret_key
-        
+
+        self.results = None
+        self.experiment_id = "qi26_26_QRNG_"
+        self.simulator = None
+        self.circuit_params = {}
+        self.metrics = {}
+        self.environment = {}
+
         self.start_time = datetime.fromtimestamp(time.time()) 
         self.computer_time = time.time()
         self.start_time = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -40,7 +48,6 @@ class ExperimentMonitor:
         print(f"Region: {self.region_name}")
         print(f"Start Time: {self.start_time}")
         
-
 
     def __get_credentials_dict(self):
         """Helper to pass assumed role tokens to clients/resources."""
@@ -58,8 +65,102 @@ class ExperimentMonitor:
             "Datetime": datetime.now(timezone.utc).isoformat()
         }
     
-    def log_to_server(self):
+    def __get_params(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+
+            sig = inspect.signature(func)
+            bound_args = sig.bind(*args, **kwargs)
+            #bound_args.apply_defaults() 
+            params = dict(bound_args.arguments)
+            
+            return params
+        return wrapper
+    
+    def monitor_experiment(self, experiment_function, params: dict):
+        initial_metrics = self.__get_metrics()
+        cloud_infra_initial_metrics = self.infra_monitor.get_ec2_infrastructure_metrics()
+        monitor_results = {}
+
+        thread = threading.Thread(target=experiment_function, kwargs=params)
+        thread.start()
+        thread_count = 0
+
+        time.sleep(1) 
+
+        while (thread.is_alive()):
+            thread_count = thread_count + 1
+            print("Experiment function is currently running,.")
+            time.sleep(0.5)
+
+            monitor_results[f"Local Machine Data {thread_count}"] = post_metrics = self.__get_metrics()
+            monitor_results["Total Local CPU Usage"] = [f"Local Machine Data {thread_count}"]["CPU_usage"] + [f"Local Machine Data {thread_count}"]["CPU_usage"]
+            monitor_results["Total Local RAM Usage"] = [f"Local Machine Data {thread_count}"]["RAM_usage"] + [f"Local Machine Data {thread_count}"]["RAM_usage"]
+
+            monitor_results[f"Cloud Machine Data {thread_count}"] = self.infra_monitor.get_ec2_infrastructure_metrics()
+            monitor_results["Total Cloud CPU Usage"] = [f"Local Cloud Data {thread_count}"]["CPU_usage"] + [f"Local Cloud Data {thread_count}"]["CPU_usage"]
+            monitor_results["Total Cloud RAM Usage"] = [f"Local Cloud Data {thread_count}"]["CPU_usage"] + [f"Local Cloud Data {thread_count}"]["CPU_usage"]
+
+        thread.join()
+
+        get_values = []
+    
+        return monitor_results
+
+    def log_to_repo(self, results: object, monitored_results: dict, notes: str, benchmark_type: str):
         """Logs the associated data to the GitHub repo."""
+
+        infra_monitor = InfrastructureMonitor(self.access_key, self.secret_key)
+        get_infra_attr = infra_monitor.get_instance_attributes
+
+        experiment_count += 1
+        self.experiment_id += self.experiment_id + f"_00{experiment_count}"
+        self.results = results
+        self.notes = notes
+
+        experiment_log = {
+            "experiment_id": self.experiment_id,
+            "benchmark_type": benchmark_type,
+            "timestamp":  datetime.now(timezone.utc).isoformat(),
+            "simulator": "LocalSimulator",
+            "circuit_params": {
+                "qubits": 0,
+                "depth": 0,
+                "shots": 0,
+                "gates": {
+                    "H": 0,
+                    "CNOT": 0,
+                    "other": 0
+                }
+            },
+            "metrics": {
+                "circuit_fidelity_dR2": 0.0,
+                "shot_noise_converged_at": "int",
+                "cv_value": "float",
+                "local_vs_sv1_ks_pvalue": "float",
+                "gate_error_rate_tested": "float",
+                "fidelity_under_noise": "float",
+                "measurement_bias_pvalue": "float",
+                "runtime_seconds": monitored_results[''] ,
+                "cloud_overhead_seconds": "float"
+            },
+            "environment": {
+                "braket_sdk_version": "",
+                "python_version": "",
+                "instance_type": get_infra_attr['ec2_instance']['instance_type']
+            },
+            "notes": notes
+        }
+
+        get_experiment_params = self.__get_params(experiment_function)
+
+        for param, value in get_experiment_params.items():
+            if (param in experiment_log['circuit_params'].keys()):
+                experiment_log['circuit_params'][param] = value
+            else:
+                if (param == experiment_log['circuit_params']['gates']):
+                    experiment_log['circuit_params']['gates'][param] = value
+
 
         repo_url = "https://api.github.com/repos/Shel-y/qintern2026-quantum-benchmarking/contents/results"
         functions_to_run = []
@@ -77,9 +178,8 @@ class ExperimentMonitor:
 
 class InfrastructureMonitor:
 
-    def __init__(self, role_arn: str, access_key: str, secret_key: str, region_name: str = "us-east-1"):
+    def __init__(self, access_key: str, secret_key: str, region_name: str = "us-east-1"):
 
-        self.role_arn = role_arn
         self.region_name = region_name
         self.start_time = time.time()
 
@@ -157,12 +257,40 @@ class InfrastructureMonitor:
             
     def get_ec2_infrastructure_metrics(self):
 
-        infra_metrics = ['CPUUtilization', 'NetworkIn', 'NetworkOut', 'DiskReadOps', 'DiskWriteOps']
+        infra_metrics = ['CPUUtilization', 'mem_used_percent', 'NetworkIn', 'NetworkOut', 'DiskReadOps', 'DiskWriteOps']
         infra_results = []
 
         usage_results = {}
 
+        ram_response = None
+        ram_average = 0
+
         for metric in infra_metrics:
+
+            if (metric == 'mem_used_percent'):
+                ram_response = self.cw_client.get_metric_statistics(
+                Namespace='CWAgent',
+                MetricName=metric,
+                Dimensions=[{'Name': 'InstanceId', 'Value': 'i-0123456789abcdef0'}],
+                StartTime=datetime.now(timezone.utc) - timedelta(minutes=5),
+                EndTime=datetime.now(timezone.utc),
+                Period=300,
+                Statistics=['Average']
+                )
+
+                if not ram_response['Datapoints']:
+                    ram_response['Average'] = 0.0
+                else:
+                    datapoints_count = len(ram_response['Datapoints'])
+                    sum_datapoints = []
+                    for i in range(0, datapoints_count):
+                        sum_datapoints.append(ram_response['Datapoints'][i]['Average'])
+                    ram_average = sum(sum_datapoints) / len(sum_datapoints)
+
+                ram_response['RAM Summed Average'] = ram_average
+
+                infra_results.append(ram_response)
+
             average = 0
             metrics = self.cw_client.get_metric_statistics(
                 Namespace='AWS/EC2',
@@ -204,7 +332,6 @@ class InfrastructureMonitor:
                     
                 current_time = datetime.now(timezone.utc)
                 compute_time_used = current_time - launch_time
-
                 
                 usage_results["EC2_usage"] = {
                     'instance_id': instance.get("InstanceId"),

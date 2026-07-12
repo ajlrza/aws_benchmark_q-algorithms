@@ -17,6 +17,11 @@ from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnect
 
 class ExperimentMonitor:
 
+    '''
+      Monitors the experiment code ran on the local machine
+      and gathers local-bound metrics using the psutil library
+    '''
+
     def __init__(self, sts_client: object):
         
         if not sts_client:
@@ -75,6 +80,12 @@ class ExperimentMonitor:
     
     
 class InfrastructureMonitor:
+
+    '''
+      Monitors the cloud infrastructure and gathers AWS-bound 
+      metrics using the boto3 through ec2 client and cloudwatch
+      client
+    '''
 
     def __init__(self, region_name = "us-east-1"):
 

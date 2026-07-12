@@ -10,6 +10,7 @@ It contains:
 - Infrastructure as Code
 - YAML
 - .env.example
+- Workflows
 
 ## Repository Structure
 ```text

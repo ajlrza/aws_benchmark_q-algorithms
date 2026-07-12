@@ -58,7 +58,7 @@ def monitor_experiment(infra_monitor_class, experiment_monitor_class, experiment
                   print("Sleeping for 10 seconds..")
                   time.sleep(10)
 
-            monitor_results[f"Local Machine Data {thread_count}"] = experiment_monitor_class.__get_metrics()
+            monitor_results["Local Machine Data"][f"Local Machine Data {thread_count}"] = experiment_monitor_class.__get_metrics()
             monitor_results["Total Local CPU Usage"] = [f"Local Machine Data {thread_count}"]["CPU_usage"] + [f"Local Machine Data {thread_count}"]["CPU_usage"]
             monitor_results["Total Local RAM Usage"] = [f"Local Machine Data {thread_count}"]["RAM_usage"] + [f"Local Machine Data {thread_count}"]["RAM_usage"]
 

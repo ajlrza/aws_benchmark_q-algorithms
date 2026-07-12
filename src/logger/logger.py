@@ -1,20 +1,27 @@
+import platform
 import json, base64, os
+import braket._sdk as braket_sdk
 from datetime import datetime, timezone, timedelta
+from monitors.local.local_monitor import experiment_monitor_class
+from classes import InfrastructureMonitor
+from classes import ExperimentMonitor
 
-
-def log_to_repo(experiment_monitor_class, infra_monitor_class, results: object, experiment_function, monitored_results: dict, notes: str, benchmark_type: str):
+def log_to_repo(results: object, experiment_function, monitored_results: dict, notes: str, benchmark_type: str):
         """Logs the associated data to the GitHub repo."""
 
-        infra_monitor = infra_monitor_class(os.environ.get["ACCESS_KEY"], os.environ.get["SECRET_ACCESS_KEY"])
+        exp_monitor = ExperimentMonitor()
+        infra_monitor = InfrastructureMonitor("us-east-1")
+        
         get_infra_attr = infra_monitor.get_instance_attributes
 
         experiment_count += 1
-        experiment_monitor_class.experiment_id += experiment_monitor_class.experiment_id + f"_00{experiment_count}"
-        experiment_monitor_class.results = results
-        experiment_monitor_class.notes = notes
+        exp_monitor.experiment_id += exp_monitor.experiment_id + f"00{experiment_count}"
+
+        local_results = monitored_results["Local Machine Data"]
+        cloud_results = monitored_results["Cloud Machine Data"]
 
         experiment_log = {
-            "experiment_id": experiment_monitor_class.experiment_id,
+            "experiment_id": exp_monitor.experiment_id,
             "benchmark_type": benchmark_type,
             "timestamp":  datetime.now(timezone.utc).isoformat(),
             "simulator": "LocalSimulator",
@@ -36,18 +43,18 @@ def log_to_repo(experiment_monitor_class, infra_monitor_class, results: object, 
                 "gate_error_rate_tested": "float",
                 "fidelity_under_noise": "float",
                 "measurement_bias_pvalue": "float",
-                "runtime_seconds": monitored_results[''] ,
-                "cloud_overhead_seconds": "float"
+                "runtime_seconds": ([local_results, cloud_results] if (local_results and cloud_results)  else (local_results or cloud_results)),
+                "cloud_overhead_seconds": cloud_results[""]
             },
             "environment": {
-                "braket_sdk_version": "",
-                "python_version": "",
+                "braket_sdk_version": braket_sdk.__version__,
+                "python_version": platform.python_version(),
                 "instance_type": get_infra_attr['ec2_instance']['instance_type']
             },
             "notes": notes
         }
 
-        get_experiment_params = experiment_monitor_class.__get_params(experiment_function)
+        get_experiment_params = exp_monitor.__get_params(experiment_function)
 
         for param, value in get_experiment_params.items():
             if (param in experiment_log['circuit_params'].keys()):
@@ -59,7 +66,7 @@ def log_to_repo(experiment_monitor_class, infra_monitor_class, results: object, 
 
         repo_url = os.environ.get("REPO_URL")
         functions_to_run = []
-        functions_to_run.append(("EC2", infra_monitor_class.monitor_ec2_vm()))
+        functions_to_run.append(("EC2", infra_monitor.monitor_ec2_vm()))
 
         snapshot = {
             name: monitor_func for name, monitor_func in functions_to_run

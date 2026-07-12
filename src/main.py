@@ -17,22 +17,18 @@ from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnect
 
 class ExperimentMonitor:
 
-    def __init__(self, 
-                 sts_client: object, 
-                 access_key: str, 
-                 secret_key: str, 
-                 ):
+    def __init__(self, sts_client: object):
         
         if not sts_client:
             raise ValueError("Missing required variables: sts_client")
         
-        self.infra_monitor = InfrastructureMonitor(access_key, secret_key)
+        self.access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+        self.secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+        
+        self.infra_monitor = InfrastructureMonitor(self.access_key, self.secret_key)
         self.sts_client = sts_client
         self.identity = self.sts_client.get_caller_identity()
         self.region_name = "us-east-1"
-
-        self.access_key = access_key
-        self.secret_key = secret_key
 
         self.results = None
         self.experiment_id = "qi26_26_QRNG_"
@@ -110,7 +106,7 @@ class ExperimentMonitor:
     
         return monitor_results
 
-    def log_to_repo(self, results: object, monitored_results: dict, notes: str, benchmark_type: str):
+    def log_to_repo(self, results: object, experiment_function, monitored_results: dict, notes: str, benchmark_type: str):
         """Logs the associated data to the GitHub repo."""
 
         infra_monitor = InfrastructureMonitor(self.access_key, self.secret_key)
@@ -165,7 +161,7 @@ class ExperimentMonitor:
                     experiment_log['circuit_params']['gates'][param] = value
 
 
-        repo_url = "https://api.github.com/repos/Shel-y/qintern2026-quantum-benchmarking/contents/results"
+        repo_url = os.environ.get("REPO_URL")
         functions_to_run = []
         functions_to_run.append(("EC2", self.monitor_ec2_vm()))
 
@@ -181,13 +177,13 @@ class ExperimentMonitor:
 
 class InfrastructureMonitor:
 
-    def __init__(self, access_key: str, secret_key: str, region_name: str = "us-east-1"):
+    def __init__(self, region_name = "us-east-1"):
 
         self.region_name = region_name
         self.start_time = time.time()
 
-        self.access_key = access_key
-        self.secret_key = secret_key
+        self.access_key = os.getenv("AWS_ACCESS_KEY_ID")
+        self.secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
 
         print(f"Role: {self.role_arn}")
         print(f"Region: {self.region_name}")

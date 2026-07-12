@@ -58,7 +58,7 @@ class ExperimentMonitor:
         }
 
     def __get_metrics(self):
-        """Calculates current system utilization and latency in jupyter notebook."""
+        """Calculates current system utilization and latency in the local machine."""
         return {
             "I/O latency": time.time() - self.computer_time,
             "CPU_usage": psutil.cpu_percent(interval=0.1), 
@@ -66,7 +66,9 @@ class ExperimentMonitor:
             "Datetime": datetime.now(timezone.utc).isoformat()
         }
     
+    @staticmethod
     def __get_params(func):
+        """Extracts the parameters passed on the function for logging purposes"""
         @wraps(func)
         def wrapper(*args, **kwargs):
 
@@ -77,7 +79,6 @@ class ExperimentMonitor:
             
             return params
         return wrapper
-    
     
 class InfrastructureMonitor:
 
@@ -115,7 +116,6 @@ class InfrastructureMonitor:
                 'braket', 
                 **self.__get_credentials_dict(), 
             )
-
             self.assumed_role = self.sts_client.assume_role(
                 RoleArn=self.role_arn,
                 RoleSessionName="InstanceMonitor",
@@ -123,7 +123,7 @@ class InfrastructureMonitor:
             self.creds = self.assumed_role["Credentials"]
 
             print(f"Managing Instance: ")
-            print("Successfully assumed monitoring IAM role and EC2 instance.")
+            print("Successfully assumed monitoring EC2 and Braket instance.")
 
         except Exception as e:
             print(f"Failed to assume IAM role: {e}")
@@ -136,7 +136,7 @@ class InfrastructureMonitor:
             "aws_secret_access_key": self.secret_key, 
         }
 
-            
+      
 experiment_agent = ExperimentMonitor( 
     role_arn="arn:aws:iam::000000000000:role/local-mock-role", 
     region_name="us-east-1"

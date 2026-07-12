@@ -30,5 +30,9 @@ It contains:
 ├── 📄 README.md
 ├── 📄 dev-config.yaml
 └── 📄 prod-config.yaml
-
+📂 assets
+└── 🖼️ Infrastructure.png
 ```
+
+## Infrastructure
+![Infrastructure Diagram](assets/Infrastructure.png)

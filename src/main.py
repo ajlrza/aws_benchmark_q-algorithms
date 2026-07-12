@@ -5,7 +5,6 @@ import psutil
 import boto3
 from datetime import datetime, timezone
 from functools import wraps
-from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 
 class ExperimentMonitor:
 
@@ -31,15 +30,6 @@ class ExperimentMonitor:
         return {
             "aws_access_key": self.access_key, 
             "aws_secret_access_key": self.secret_key, 
-        }
-
-    def __get_metrics(self):
-        """Calculates current system utilization and latency in the local machine."""
-        return {
-            "I/O latency": time.time() - self.computer_time,
-            "CPU_usage": psutil.cpu_percent(interval=0.1), 
-            "RAM_usage": psutil.virtual_memory().percent,
-            "Datetime": datetime.now(timezone.utc).isoformat()
         }
     
     @staticmethod

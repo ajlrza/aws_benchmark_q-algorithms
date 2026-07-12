@@ -1,8 +1,22 @@
 from datetime import datetime, timezone, timedelta
+from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
+
 
 def get_instance_attributes(infra_monitor_class):
 
-        get_instance = infra_monitor_class.ec2_client.describe_instances() 
+        try:
+            get_instance = infra_monitor_class.ec2_client.describe_instances()
+        except ClientError:
+
+             print("Client error has occured, would you like to route to local monitor?")
+             response = input("Enter Y/N")
+
+             match response:
+                  case "Y":
+                       local_monitor = local_machine_monitor(experiment_function, params: dict)
+                       return local_monitor
+                  case "N":
+                       return 1
 
         ec2_instance = {
             "instance_id": get_instance["Reservations"]["Instances"]["InstanceId"],

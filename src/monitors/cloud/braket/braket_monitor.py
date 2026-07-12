@@ -1,3 +1,5 @@
+from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
+
 def get_braket_infrastructure_metrics(infra_monitor_class, run_result):
 
         usage_results = {}

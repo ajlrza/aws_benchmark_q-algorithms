@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "LogNMonitor"
+version = "1.0.0"
+requires-python = ">= 3.8"
+dependencies = [
+    "amazon-braket-sdk",
+    "boto3",
+    "botocore",
+    "psutil"
+]
+authors = [
+  {name = "Anjelo Laroza", email = "larozaanjelo@gmail.com"},
+]
+maintainers = [
+  {name = "Anjelo Laroza", email = "larozaanjelo@gmail.com"}
+]
+description = "Python-based Monitor & Log Tool for AWS EC2, Braket, and Local Machine."
+readme = "README.md"

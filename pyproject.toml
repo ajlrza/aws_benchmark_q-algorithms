@@ -3,7 +3,7 @@ requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "LogNMonitor"
+name = "QMonitor"
 version = "1.0.0"
 requires-python = ">= 3.8"
 dependencies = [
@@ -20,3 +20,6 @@ maintainers = [
 ]
 description = "Python-based Monitor & Log Tool for AWS EC2, Braket, and Local Machine."
 readme = "README.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]

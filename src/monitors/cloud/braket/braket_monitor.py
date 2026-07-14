@@ -2,7 +2,7 @@ import os
 from monitors.local.local_monitor import machine_local_monitor
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 
-def get_braket_infrastructure_metrics(experiment_function, infra_monitor_class, run_result):
+def experiment_braket_monitor(experiment_function, infra_monitor_class, run_result):
         
         try:
             get_instance = infra_monitor_class.braket_client.get_quantum_task()

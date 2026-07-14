@@ -2,13 +2,9 @@ import platform
 import json, base64, os
 from dataclasses import asdict
 import braket._sdk as braket_sdk
-from config.credentials_config import CredsConfig
+from config.master_config import Config
 from datetime import datetime, timezone, timedelta
 from classes import InfrastructureMonitor, ExperimentMonitor
-from config.experiment_config import ExpConfig, CircParams, Metrics, Environ, Gates
-from config.master_config import Config
-from monitors.local.local_monitor import machine_local_monitor, experiment_local_monitor
-from monitors.cloud.ec2.ec2_monitor import ec2_machine_cloud_monitor, ec2_instance_monitor
 
 def log_to_repo(
           sts_client: object, 
@@ -22,13 +18,11 @@ def log_to_repo(
 
         exp_monitor = ExperimentMonitor()
         infra_monitor = InfrastructureMonitor("us-east-1")
-        
-        get_infra_attr = infra_monitor.get_instance_attributes
 
         experiment_count += 1
         exp_monitor.experiment_id += exp_monitor.experiment_id + f"00{experiment_count}"
 
-        local_results = monitored_results["Local Machine Data"]
+        local_results = monitored_results["Local Machine Experiment Metrics"]
         cloud_results = monitored_results["Cloud Machine Data"]
 
         config = Config()

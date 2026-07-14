@@ -10,3 +10,4 @@ class Config:
     circ: CircParams = field(default_factory=CircParams)
     metric: Metrics = field(default_factory=Metrics)
     env: Environ = field(default_factory=Environ)
+    gates: Gates = field(default_factory=Gates)

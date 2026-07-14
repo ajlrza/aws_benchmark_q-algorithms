@@ -1,13 +1,15 @@
 import os
 from datetime import datetime, timezone, timedelta
-from monitors.local.local_monitor import machine_local_monitor
+from monitors.local.local_monitor import experiment_local_monitor
+from config.master_config import Config
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 
-
 def ec2_instance_monitor(infra_monitor_class, experiment_function):
+        
+        ec2_instance_description = None
 
         try:
-            get_instance = infra_monitor_class.ec2_client.describe_instances()
+             ec2_instance_description = infra_monitor_class.ec2_client.describe_instances()
 
         except ClientError:
              
@@ -17,7 +19,7 @@ def ec2_instance_monitor(infra_monitor_class, experiment_function):
              match response:
                   
                   case "Y":
-                       local_monitor = machine_local_monitor(experiment_function)
+                       local_monitor = experiment_local_monitor(experiment_function)
                        return local_monitor
                   
                   case "N":
@@ -30,7 +32,7 @@ def ec2_instance_monitor(infra_monitor_class, experiment_function):
              match response:
                   
                   case "Y":
-                       local_monitor = machine_local_monitor(experiment_function)
+                       local_monitor = experiment_local_monitor(experiment_function)
                        return local_monitor
                   
                   case "N":
@@ -46,30 +48,32 @@ def ec2_instance_monitor(infra_monitor_class, experiment_function):
                        except NoCredentialsError as E:
                            print(f"{E} has occured, defaulting to local monitor...")
 
-                           local_monitor = machine_local_monitor(experiment_function)
+                           local_monitor = experiment_local_monitor(experiment_function)
                            return local_monitor
                        
         except EndpointConnectionError:
              print("Connection error, defaulting to local monitor..")
 
-             local_monitor = machine_local_monitor(experiment_function)
+             local_monitor = experiment_local_monitor(experiment_function)
              return local_monitor
+        
+        if  ec2_instance_description is None:
+            print("Could not retrieve AWS data. Aborting process.")
                   
-
         ec2_instance = {
-            "instance_id": get_instance["Reservations"]["Instances"]["InstanceId"],
-            "image_id": get_instance["Reservations"]["Instances"]["ImageId"],
-            "instance_type": get_instance["Reservations"]["Instances"]["InstanceType"],
-            "architecture": get_instance["Reservations"]["Instances"]["Architecture"],
+            "instance_id":  ec2_instance_description["Reservations"]["Instances"]["InstanceId"],
+            "image_id":  ec2_instance_description["Reservations"]["Instances"]["ImageId"],
+            "instance_type": ec2_instance_description["Reservations"]["Instances"]["InstanceType"],
+            "architecture": ec2_instance_description["Reservations"]["Instances"]["Architecture"],
         }
 
-        get_types = infra_monitor_class.ec2_client.describe_instance_types(
+        instance_types = infra_monitor_class.ec2_client.describe_instance_types(
             InstanceTypes=['t3.micro', 'm5.large']
         )
 
         ec2_instance_attributes = None
 
-        for instance in infra_monitor_class.get_types['InstanceTypes']:
+        for instance in infra_monitor_class.instance_types['InstanceTypes']:
 
             result = {
                 "vCPUs": f"{instance['VCpuInfo']['DefaultVCpus']}",
@@ -86,7 +90,7 @@ def ec2_instance_monitor(infra_monitor_class, experiment_function):
         
         return ec2_logged_data
             
-def ec2_machine_cloud_monitor(infra_monitor_class):
+def ec2_machine_cloud_monitor(Config):
 
         infra_metrics = ['CPUUtilization', 'mem_used_percent', 'NetworkIn', 'NetworkOut', 'DiskReadOps', 'DiskWriteOps']
         infra_results = []

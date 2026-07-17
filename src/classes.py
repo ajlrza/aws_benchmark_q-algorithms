@@ -1,13 +1,9 @@
-import os
-import time
-import inspect
-import psutil
-import boto3
 from functools import wraps
-from monitors.error_codes import error_codes
+import os, time, inspect, boto3
 from datetime import datetime, timezone
-from monitors.local.local_monitor import experiment_local_monitor
-from monitors.cloud.braket.braket_monitor import braket_cloud_monitor
+from monitors.error_codes import error_codes
+from monitors.local.local_monitor import local_machine_monitor
+from monitors.cloud.braket.braket_monitor import braket_simulator_monitor
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 from monitors.cloud.ec2.ec2_monitor import ec2_machine_cloud_monitor, ec2_instance_monitor
 
@@ -51,11 +47,11 @@ class ExperimentMonitor:
             local_results: Dictionary containing results from the psutil library.
         """
 
-        experiment_local_monitor = experiment_local_monitor(experiment_function)
+        local_monitor = local_machine_monitor(experiment_function)
 
         local_results = {}
 
-        local_results["Local Machine Experiment Metrics"] =  experiment_local_monitor
+        local_results["Local Machine Experiment Metrics"] =  local_monitor
         
         return local_results
     
@@ -71,13 +67,17 @@ class ExperimentMonitor:
             cloud_results: Dictionary containing results from the AWS Boto3 API.
         """
 
-        experiment_cloud_monitor = ec2_machine_cloud_monitor(experiment_function)
-        experiment_cloud_instance_metrics = ec2_instance_monitor(experiment_function)
-
         cloud_results = {}
 
-        cloud_results["EC2 Machine Experiment Metrics"] =  experiment_cloud_monitor
-        cloud_results["EC2 Instance Experiment Metrics"] =  experiment_cloud_instance_metrics
+        experiment_cloud_monitor_ec2 = ec2_machine_cloud_monitor(experiment_function)
+        experiment_cloud_ec2_metrics = ec2_instance_monitor(experiment_function)
+
+        experiment_cloud_monitor_braket = braket_simulator_monitor(experiment_function)
+
+        cloud_results["EC2 Machine Experiment Metrics"] =  experiment_cloud_monitor_ec2
+        cloud_results["EC2 Instance Experiment Metrics"] =  experiment_cloud_ec2_metrics
+
+        cloud_results["Braket Experiment Metrics"] =  experiment_cloud_monitor_braket
         
         return cloud_results
 

@@ -1,0 +1,1 @@
+from src.logger.logger import log_to_repo

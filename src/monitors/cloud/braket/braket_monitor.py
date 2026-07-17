@@ -1,5 +1,5 @@
 import os
-from monitors.local.local_monitor import machine_local_monitor
+from monitors.local.local_monitor import experiment_local_monitor
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 
 def experiment_braket_monitor(experiment_function, infra_monitor_class, run_result):
@@ -15,7 +15,7 @@ def experiment_braket_monitor(experiment_function, infra_monitor_class, run_resu
              match response:
                   
                   case "Y":
-                       local_monitor = machine_local_monitor(experiment_function)
+                       local_monitor = experiment_local_monitor(experiment_function)
                        return local_monitor
                   
                   case "N":
@@ -28,7 +28,7 @@ def experiment_braket_monitor(experiment_function, infra_monitor_class, run_resu
              match response:
                   
                   case "Y":
-                       local_monitor = machine_local_monitor(experiment_function)
+                       local_monitor = experiment_local_monitor(experiment_function)
                        return local_monitor
                   
                   case "N":
@@ -44,13 +44,13 @@ def experiment_braket_monitor(experiment_function, infra_monitor_class, run_resu
                        except NoCredentialsError as E:
                            print(f"{E} has occured, defaulting to local monitor...")
 
-                           local_monitor = machine_local_monitor(experiment_function)
+                           local_monitor = experiment_local_monitor(experiment_function)
                            return local_monitor
                        
         except EndpointConnectionError:
              print("Connection error, defaulting to local monitor..")
 
-             local_monitor = machine_local_monitor(experiment_function)
+             local_monitor = experiment_local_monitor(experiment_function)
              return local_monitor
 
         usage_results = {}

@@ -1,9 +1,8 @@
-import platform
-import json, base64, os
 from dataclasses import asdict
 import braket._sdk as braket_sdk
+import platform, json, base64, os
 from config.master_config import Config
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from classes import InfrastructureMonitor, ExperimentMonitor
 
 def log_to_repo(

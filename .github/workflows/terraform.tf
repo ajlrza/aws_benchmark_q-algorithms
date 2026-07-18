@@ -38,8 +38,6 @@ output "instance_private_ip" {
 
 # 2. S3 Bucket
 resource "aws_s3_bucket" "experiment_bucket" {
-  # Bucket names must use hyphens, not underscores, and be globally unique.
-  # Consider adding a random string or your account ID to the end of this name.
   bucket = "my-quantum-experiment-bucket-12345" 
 
   tags = {
@@ -49,7 +47,6 @@ resource "aws_s3_bucket" "experiment_bucket" {
 }
 
 output "s3_bucket_domain" { 
-  # Fixed reference to the correct bucket resource
   value       = aws_s3_bucket.experiment_bucket.bucket_domain_name 
   description = "AWS S3 bucket domain name for the experiment" 
 } 

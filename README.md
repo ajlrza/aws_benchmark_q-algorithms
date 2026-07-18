@@ -39,18 +39,14 @@ It contains:
 
 ### Terraform ```.gitignore``` File
 ```
-# Local .terraform directories
 **/.terraform/*
 
-# .tfstate files
 *.tfstate
 *.tfstate.*
 
-# Crash log files
 crash.log
 crash.*.log
 
-# Ignore any .tfvars files that might contain sensitive variables later
 *.tfvars
 *.tfvars.json
 ```

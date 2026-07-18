@@ -11,6 +11,11 @@ provider "aws" {
   region = "us-east-1" 
 } 
 
+# ID Randomizer
+resource "random_id" "bucket_suffix" {
+  byte_length = 4
+}
+
 # 1. EC2 Instance
 resource "aws_instance" "experiment_instance" { 
   ami           = "ami-0c7217cdde317cfec" # Sample AMI
@@ -38,7 +43,7 @@ output "instance_private_ip" {
 
 # 2. S3 Bucket
 resource "aws_s3_bucket" "experiment_bucket" {
-  bucket = "my-quantum-experiment-bucket-12345" 
+  bucket = "experiment-bucket-${random_id.bucket_suffix.hex}" 
 
   tags = {
     Name        = "Experiment Bucket"

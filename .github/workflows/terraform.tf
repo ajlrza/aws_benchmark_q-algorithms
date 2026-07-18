@@ -62,7 +62,6 @@ resource "aws_iam_role" "braket_role" {
         Action    = "sts:AssumeRole" 
         Effect    = "Allow" 
         Principal = { 
-          # Fixed the malformed service principal
           Service = "braket.amazonaws.com" 
         } 
       } 

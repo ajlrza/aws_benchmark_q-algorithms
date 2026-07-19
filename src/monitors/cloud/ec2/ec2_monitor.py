@@ -1,4 +1,5 @@
 import os, threading, time
+from unittest.mock import MagicMock
 from ....config.master_config import Config
 from datetime import datetime, timezone, timedelta
 from ....monitors.local.local_monitor import local_user_monitor
@@ -9,7 +10,7 @@ def ec2_instance_monitor(config, experiment_function):
         ec2_instance_description = None
 
         try:
-             ec2_instance_description = config.ec2_client.describe_instances()
+             ec2_instance_description = config.creds['ec2_client'].describe_instances()
 
         except ClientError:
              
@@ -59,32 +60,50 @@ def ec2_instance_monitor(config, experiment_function):
         if  ec2_instance_description is None:
             print("Could not retrieve AWS data. Aborting process.")
                   
-        ec2_instance = {
-            "instance_id":  ec2_instance_description["Reservations"]["Instances"]["InstanceId"],
-            "image_id":  ec2_instance_description["Reservations"]["Instances"]["ImageId"],
-            "instance_type": ec2_instance_description["Reservations"]["Instances"]["InstanceType"],
-            "architecture": ec2_instance_description["Reservations"]["Instances"]["Architecture"],
+        mocked_response = {
+            'InstanceTypes': [
+                {
+                    'InstanceType': 't3.micro',
+                    'VCpuInfo': {'DefaultVCpus': 2, 'DefaultCores': 1, 'DefaultThreadsPerCore': 2},
+                    'MemoryInfo': {'SizeInMiB': 1024},
+                    'ProcessorInfo': {'SupportedArchitectures': ['x86_64']},
+                    'GpuInfo': 'No GPU',
+                    'Hypervisor': 'nitro'
+                },
+                {
+                    'InstanceType': 'm5.large',
+                    'VCpuInfo': {'DefaultVCpus': 2, 'DefaultCores': 1, 'DefaultThreadsPerCore': 2},
+                    'MemoryInfo': {'SizeInMiB': 8192},
+                    'ProcessorInfo': {'SupportedArchitectures': ['x86_64']},
+                    'GpuInfo': 'No GPU',
+                    'Hypervisor': 'nitro'
+                }
+            ]
         }
 
-        instance_types = config.ec2_client.describe_instance_types(
+        config.creds['ec2_client'].describe_instance_types = MagicMock(return_value=mocked_response)
+
+        instance_types = config.creds['ec2_client'].describe_instance_types(
             InstanceTypes=['t3.micro', 'm5.large']
         )
 
-        ec2_instance_attributes = None
+        ec2_instance_attributes = {}
 
-        for instance in config.instance_types['InstanceTypes']:
+        for instance in instance_types['InstanceTypes']:
 
             result = {
                 "Instance": f"{instance['InstanceType']}",
                 "vCPUs": f"{instance['VCpuInfo']['DefaultVCpus']}",
                 "Memory": f"{instance['MemoryInfo']['SizeInMiB']} MiB",
-                "Processor": f"{instance['ProcessorInfo']}",
-                "GPU": f"{instance['GpuInfo']}",
-                "Hypervisor": f"{instance['Hypervisor']}"
+                "Processor": f"{instance.get('ProcessorInfo', 'N/A')}",
+                "GPU": f"{instance.get('GpuInfo', 'No GPU')}",
+                "Hypervisor": f"{instance.get('Hypervisor', 'N/A')}"
             }
 
+            ec2_instance_attributes[f"Instance {instance}"] = result
+
         ec2_logged_data = {
-            "ec2_instance": ec2_instance,
+            "ec2_instance": ec2_instance_description,
             "ec2_instance_attributes": ec2_instance_attributes
         }
         
@@ -103,12 +122,12 @@ def ec2_machine_cloud_monitor(config):
         for metric in infra_metrics:
 
             if (metric == 'mem_used_percent'):
-                ram_response = config.cw_client.get_metric_statistics(
+                ram_response = config.creds['cw_client'].get_metric_statistics(
                 Namespace='CWAgent',
                 MetricName=metric,
                 Dimensions=[{'Name': 'InstanceId', 'Value': 'i-0123456789abcdef0'}],
-                StartTime=datetime.now(timezone.utc) - timedelta(minutes=5),
-                EndTime=datetime.now(timezone.utc),
+                StartTime=str(datetime.now(timezone.utc) - timedelta(minutes=5)),
+                EndTime=str(datetime.now(timezone.utc)),
                 Period=300,
                 Statistics=['Average']
                 )
@@ -127,12 +146,12 @@ def ec2_machine_cloud_monitor(config):
                 infra_results.append(ram_response)
 
             average = 0
-            metrics = config.cw_client.get_metric_statistics(
+            metrics = config.creds['cw_client'].get_metric_statistics(
                 Namespace='AWS/EC2',
                 MetricName=metric,
-                Dimensions=[{'Name': 'InstanceId', 'Value': 'i-0123456789abcdef0'}],
-                StartTime=datetime.now(timezone.utc) - timedelta(minutes=5),
-                EndTime=datetime.now(timezone.utc),
+                Dimensions=[{'Name': "InstanceId", 'Value': "ami-0123456789abcdef0"}],
+                StartTime=str(datetime.now(timezone.utc) - timedelta(minutes=5)),
+                EndTime=str(datetime.now(timezone.utc)),
                 Period=300,
                 Statistics=['Average']
             )
@@ -151,7 +170,7 @@ def ec2_machine_cloud_monitor(config):
             
             infra_results.append(metrics)
 
-        ec2_usage = config.ec2_client.describe_instances(
+        ec2_usage = config.creds['ec2_client'].describe_instances(
                 Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
             )
 
@@ -165,7 +184,7 @@ def ec2_machine_cloud_monitor(config):
                 if not launch_time:
                     continue
                     
-                current_time = datetime.now(timezone.utc)
+                current_time = str(datetime.now(timezone.utc))
                 compute_time_used = current_time - launch_time
                 
                 usage_results["EC2_usage"] = {
@@ -185,15 +204,15 @@ def experiment_dual_monitor(config, experiment_monitor_class, experiment_functio
         """Monitors the experiment both locally and in the cloud through ec2, cloudwatch, and braket."""
         
         initial_metrics = experiment_monitor_class.__get_metrics()
-        cloud_infra_initial_metrics = config.get_ec2_infrastructure_metrics()
+        cloud_infra_initial_metrics = config.creds['ec2_client'].get_ec2_infrastructure_metrics()
         monitor_results = {}
 
         thread = threading.Thread(target=experiment_function, kwargs=params)
         thread.start()
 
-        monitor_results["Cloud Machine Data"] = config.get_ec2_infrastructure_metrics()
-        monitor_results["Total Cloud CPU Usage"] = config.get_ec2_infrastructure_metrics()["CPU_usage"] 
-        monitor_results["Total Cloud RAM Usage"] = config.get_ec2_infrastructure_metrics()["RAM_usage"]
+        monitor_results["Cloud Machine Data"] = config.creds['ec2_client'].get_ec2_infrastructure_metrics()
+        monitor_results["Total Cloud CPU Usage"] = config.creds['ec2_client'].get_ec2_infrastructure_metrics()["CPU_usage"] 
+        monitor_results["Total Cloud RAM Usage"] = config.creds['ec2_client'].get_ec2_infrastructure_metrics()["RAM_usage"]
         
         thread_count = 0
 
@@ -210,13 +229,13 @@ def experiment_dual_monitor(config, experiment_monitor_class, experiment_functio
                   time.sleep(10)
 
             monitor_results["Local Machine Data"][f"Local Machine Data {thread_count}"] = experiment_monitor_class.__get_metrics()
-            monitor_results["Total Local CPU Usage"] = [f"Local Machine Data {thread_count}"]["CPU_usage"] + [f"Local Machine Data {thread_count}"]["CPU_usage"]
-            monitor_results["Total Local RAM Usage"] = [f"Local Machine Data {thread_count}"]["RAM_usage"] + [f"Local Machine Data {thread_count}"]["RAM_usage"]
+            monitor_results["Total Local CPU Usage"][f"Local Machine Data {thread_count}"] = ["Local Machine Data"][f"Local Machine Data {thread_count}"]["CPU_usage"] + [f"Local Machine Data {thread_count}"]["CPU_usage"]
+            monitor_results["Total Local RAM Usage"][f"Local Machine Data {thread_count}"] = ["Local Machine Data"][f"Local Machine Data {thread_count}"]["RAM_usage"] + [f"Local Machine Data {thread_count}"]["RAM_usage"]
 
         thread.join()
 
-        monitor_results["Cloud Machine Data"] = config.get_ec2_infrastructure_metrics()
-        monitor_results["Total Cloud CPU Usage"] = config.get_ec2_infrastructure_metrics()["CPU_usage"] 
-        monitor_results["Total Cloud RAM Usage"] = config.get_ec2_infrastructure_metrics()["RAM_usage"]
+        monitor_results["Cloud Machine Data"] = config.creds['ec2_client'].get_ec2_infrastructure_metrics()
+        monitor_results["Total Cloud CPU Usage"] = config.creds['ec2_client'].get_ec2_infrastructure_metrics()["CPU_usage"] 
+        monitor_results["Total Cloud RAM Usage"] = config.creds['ec2_client'].get_ec2_infrastructure_metrics()["RAM_usage"]
     
         return monitor_results

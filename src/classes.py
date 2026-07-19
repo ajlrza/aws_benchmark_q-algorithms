@@ -28,10 +28,27 @@ class Monitor:
         self.start_time = datetime.fromtimestamp(time.time()) 
         self.computer_time = time.time()
         self.start_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        self.config = Config()
+
+        aws_session = boto3.Session(
+            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY", "test"),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_KEY", "test"),
+            region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+        )
+
+        localstack_url = 'http://localhost:4566'
+
+        self.config = Config(
+            creds={
+                "sts_client": aws_session.client("sts", endpoint_url=localstack_url),
+                "cw_client": aws_session.client("cloudwatch", endpoint_url=localstack_url),
+                "ec2_client": aws_session.client("ec2", endpoint_url=localstack_url),
+                "braket_client": aws_session.client("braket", endpoint_url=localstack_url)
+            }
+        )
 
         self.experiment_id = f"QIntern26 Experiment"
         print(f"Start Time: {self.start_time}")
+        print(self.config.creds)
     
     def monitor_local(self, experiment_function, params: dict):
         """
@@ -53,7 +70,7 @@ class Monitor:
         
         return local_results
     
-    def monitor_cloud(config, sts_client: object, experiment_function: object):
+    def monitor_cloud(self, config, experiment_function: object):
         """
         Orchestrates modules for cloud monitoring, acts as the main function to use for cloud monitoring.
 
@@ -67,13 +84,13 @@ class Monitor:
 
         cloud_results = {}
 
-        experiment_cloud_monitor_ec2 = ec2_machine_cloud_monitor(config, experiment_function)
-     #   experiment_cloud_ec2_metrics = ec2_instance_monitor(config)
+        experiment_cloud_monitor_ec2 = ec2_machine_cloud_monitor(config)
+        experiment_cloud_ec2_metrics = ec2_instance_monitor(config, experiment_function)
 
     #    experiment_cloud_monitor_braket = experiment_braket_monitor(experiment_function)
 
         cloud_results["EC2 Machine Experiment Metrics"] =  experiment_cloud_monitor_ec2
-      #  cloud_results["EC2 Instance Experiment Metrics"] =  experiment_cloud_ec2_metrics
+        cloud_results["EC2 Instance Experiment Metrics"] =  experiment_cloud_ec2_metrics
 
        # cloud_results["Braket Experiment Metrics"] =  experiment_cloud_monitor_braket
         

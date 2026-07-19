@@ -1,13 +1,14 @@
 from functools import wraps
 import os, time, inspect, boto3, sys
 from datetime import datetime, timezone
+from src.config.master_config import Config
 from .monitors.error_codes import error_codes
 from .monitors.local.local_monitor import local_user_monitor
 from .monitors.cloud.braket.braket_monitor import experiment_braket_monitor
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 from .monitors.cloud.ec2.ec2_monitor import ec2_machine_cloud_monitor, ec2_instance_monitor
 
-class ExperimentMonitor:
+class Monitor:
 
     """
       Monitors the experiment code ran on the local machine
@@ -27,6 +28,7 @@ class ExperimentMonitor:
         self.start_time = datetime.fromtimestamp(time.time()) 
         self.computer_time = time.time()
         self.start_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.config = Config()
 
         self.experiment_id = f"QIntern26 Experiment"
         print(f"Start Time: {self.start_time}")
@@ -65,15 +67,15 @@ class ExperimentMonitor:
 
         cloud_results = {}
 
-        experiment_cloud_monitor_ec2 = ec2_machine_cloud_monitor(experiment_function)
-        experiment_cloud_ec2_metrics = ec2_instance_monitor(experiment_function)
+        experiment_cloud_monitor_ec2 = ec2_machine_cloud_monitor(config, experiment_function)
+     #   experiment_cloud_ec2_metrics = ec2_instance_monitor(config)
 
-        experiment_cloud_monitor_braket = experiment_braket_monitor(experiment_function)
+    #    experiment_cloud_monitor_braket = experiment_braket_monitor(experiment_function)
 
         cloud_results["EC2 Machine Experiment Metrics"] =  experiment_cloud_monitor_ec2
-        cloud_results["EC2 Instance Experiment Metrics"] =  experiment_cloud_ec2_metrics
+      #  cloud_results["EC2 Instance Experiment Metrics"] =  experiment_cloud_ec2_metrics
 
-        cloud_results["Braket Experiment Metrics"] =  experiment_cloud_monitor_braket
+       # cloud_results["Braket Experiment Metrics"] =  experiment_cloud_monitor_braket
         
         return cloud_results
 
@@ -91,107 +93,5 @@ class ExperimentMonitor:
             return params
         return wrapper
     
-class InfrastructureMonitor:
-
-    """
-      Monitors the cloud infrastructure and gathers AWS-bound 
-      metrics using the boto3 through ec2 client and cloudwatch
-      client
-    """
-
-    def __init__(self,  region_name: str = "us-east-1", access_key: str = None, secret_key: str = None):
-
-        self.region_name = region_name
-        self.start_time = time.time()
-
-        self.access_key = os.getenv("AWS_ACCESS_KEY_ID")
-        self.secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-
-        print(f"Region: {self.region_name}")
-        print(f"Start Time: {self.start_time}")
-
-        self.sts_client = None
-        self.ec2_client = None
-        self.cw_client = None
-        self.braket_client = None
-        self.assumed_role = None
-
-        try: 
-            self.sts_client = boto3.client(
-                'sts', 
-                self.access_key,
-                self.secret_key 
-            )
-            self.ec2_client = boto3.client(
-                'ec2', 
-                self.access_key,
-                self.secret_key 
-            )
-            self.cw_client = boto3.client(
-                'cloudwatch', 
-                self.access_key,
-                self.secret_key 
-            )
-            self.braket_client = boto3.client(
-                'braket', 
-                self.access_key,
-                self.secret_key 
-            )
-
-            print(f"Managing Instance: ")
-            print("Successfully assumed monitoring EC2 and Braket instance.")
-
-        except ClientError as Error:
-
-             error_codes = error_codes
-
-             if (Error.response['Error']['Code'] == error_codes[Error.response['Error']['Code']]):
-                 return error_codes[Error.response['Error']['Code']]
-             
-             print("Client error has occured, would you like to route to experiment monitor?")
-             response = input("Enter Y/N")
-
-             match response:
-                  
-                  case "Y":
-                       print("Returning the uninstantiated ExperimentMonitor class..")
-                       return ExperimentMonitor
-                  
-                  case "N":
-                       return 1
-                  
-        except NoCredentialsError:
-             print("No credentials used, would you like to route to local monitor or redo?")
-             response = input("Enter Y/N")
-
-             match response:
-                  
-                  case "Y":
-                       print("Returning the uninstantiated ExperimentMonitor class..")
-                       return ExperimentMonitor
-                  
-                  case "N":
-                       print("Retrieving credentials from the environment variables..")
-
-                       access_key = os.environ.get("AWS_ACCESS_KEY")
-                       secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")    
-
-                       try:
-                           #new_infra_monitor_instance = infra_monitor_class(access_key, secret_key)
-                           #get_instance = new_infra_monitor_instance.ec2_client.describe_instances()
-                           pass
-
-                       except NoCredentialsError as E:
-                           print(f"{E} has occured, defaulting to local monitor...")
-
-                           #local_monitor = local_user_monitor(experiment_function)
-                           #return local_monitor
-                       
-        except EndpointConnectionError:
-             print("Connection error, defaulting to local monitor..")
-
-             #local_monitor = local_user_monitor(experiment_function)
-             #return local_monitor
-
       
 

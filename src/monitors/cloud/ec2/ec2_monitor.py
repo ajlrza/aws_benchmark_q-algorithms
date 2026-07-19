@@ -4,12 +4,12 @@ from datetime import datetime, timezone, timedelta
 from ....monitors.local.local_monitor import local_user_monitor
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 
-def ec2_instance_monitor(infra_monitor_class, experiment_function):
+def ec2_instance_monitor(config, experiment_function):
         
         ec2_instance_description = None
 
         try:
-             ec2_instance_description = infra_monitor_class.ec2_client.describe_instances()
+             ec2_instance_description = config.ec2_client.describe_instances()
 
         except ClientError:
              
@@ -42,8 +42,7 @@ def ec2_instance_monitor(infra_monitor_class, experiment_function):
                        secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")    
 
                        try:
-                           new_infra_monitor_instance = infra_monitor_class(access_key, secret_key)
-                           get_instance = new_infra_monitor_instance.ec2_client.describe_instances()
+                           get_instance = config.ec2_client.describe_instances()
 
                        except NoCredentialsError as E:
                            print(f"{E} has occured, defaulting to local monitor...")
@@ -67,13 +66,13 @@ def ec2_instance_monitor(infra_monitor_class, experiment_function):
             "architecture": ec2_instance_description["Reservations"]["Instances"]["Architecture"],
         }
 
-        instance_types = infra_monitor_class.ec2_client.describe_instance_types(
+        instance_types = config.ec2_client.describe_instance_types(
             InstanceTypes=['t3.micro', 'm5.large']
         )
 
         ec2_instance_attributes = None
 
-        for instance in infra_monitor_class.instance_types['InstanceTypes']:
+        for instance in config.instance_types['InstanceTypes']:
 
             result = {
                 "Instance": f"{instance['InstanceType']}",
@@ -91,7 +90,7 @@ def ec2_instance_monitor(infra_monitor_class, experiment_function):
         
         return ec2_logged_data
             
-def ec2_machine_cloud_monitor(infra_monitor_class, Config):
+def ec2_machine_cloud_monitor(config):
 
         infra_metrics = ['CPUUtilization', 'mem_used_percent', 'NetworkIn', 'NetworkOut', 'DiskReadOps', 'DiskWriteOps']
         infra_results = []
@@ -104,7 +103,7 @@ def ec2_machine_cloud_monitor(infra_monitor_class, Config):
         for metric in infra_metrics:
 
             if (metric == 'mem_used_percent'):
-                ram_response = infra_monitor_class.cw_client.get_metric_statistics(
+                ram_response = config.cw_client.get_metric_statistics(
                 Namespace='CWAgent',
                 MetricName=metric,
                 Dimensions=[{'Name': 'InstanceId', 'Value': 'i-0123456789abcdef0'}],
@@ -128,7 +127,7 @@ def ec2_machine_cloud_monitor(infra_monitor_class, Config):
                 infra_results.append(ram_response)
 
             average = 0
-            metrics = infra_monitor_class.cw_client.get_metric_statistics(
+            metrics = config.cw_client.get_metric_statistics(
                 Namespace='AWS/EC2',
                 MetricName=metric,
                 Dimensions=[{'Name': 'InstanceId', 'Value': 'i-0123456789abcdef0'}],
@@ -152,7 +151,7 @@ def ec2_machine_cloud_monitor(infra_monitor_class, Config):
             
             infra_results.append(metrics)
 
-        ec2_usage = infra_monitor_class.ec2_client.describe_instances(
+        ec2_usage = config.ec2_client.describe_instances(
                 Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
             )
 
@@ -182,20 +181,19 @@ def ec2_machine_cloud_monitor(infra_monitor_class, Config):
 
         return ec2_logged_metrics
 
-def experiment_dual_monitor(infra_monitor_class, experiment_monitor_class, experiment_function, params: dict):
+def experiment_dual_monitor(config, experiment_monitor_class, experiment_function, params: dict):
         """Monitors the experiment both locally and in the cloud through ec2, cloudwatch, and braket."""
-        infra_monitor_instance = infra_monitor_class()
         
         initial_metrics = experiment_monitor_class.__get_metrics()
-        cloud_infra_initial_metrics = infra_monitor_instance.get_ec2_infrastructure_metrics()
+        cloud_infra_initial_metrics = config.get_ec2_infrastructure_metrics()
         monitor_results = {}
 
         thread = threading.Thread(target=experiment_function, kwargs=params)
         thread.start()
 
-        monitor_results["Cloud Machine Data"] = infra_monitor_instance.get_ec2_infrastructure_metrics()
-        monitor_results["Total Cloud CPU Usage"] = infra_monitor_instance.get_ec2_infrastructure_metrics()["CPU_usage"] 
-        monitor_results["Total Cloud RAM Usage"] = infra_monitor_instance.get_ec2_infrastructure_metrics()["RAM_usage"]
+        monitor_results["Cloud Machine Data"] = config.get_ec2_infrastructure_metrics()
+        monitor_results["Total Cloud CPU Usage"] = config.get_ec2_infrastructure_metrics()["CPU_usage"] 
+        monitor_results["Total Cloud RAM Usage"] = config.get_ec2_infrastructure_metrics()["RAM_usage"]
         
         thread_count = 0
 
@@ -217,8 +215,8 @@ def experiment_dual_monitor(infra_monitor_class, experiment_monitor_class, exper
 
         thread.join()
 
-        monitor_results["Cloud Machine Data"] = infra_monitor_instance.get_ec2_infrastructure_metrics()
-        monitor_results["Total Cloud CPU Usage"] = infra_monitor_instance.get_ec2_infrastructure_metrics()["CPU_usage"] 
-        monitor_results["Total Cloud RAM Usage"] = infra_monitor_instance.get_ec2_infrastructure_metrics()["RAM_usage"]
+        monitor_results["Cloud Machine Data"] = config.get_ec2_infrastructure_metrics()
+        monitor_results["Total Cloud CPU Usage"] = config.get_ec2_infrastructure_metrics()["CPU_usage"] 
+        monitor_results["Total Cloud RAM Usage"] = config.get_ec2_infrastructure_metrics()["RAM_usage"]
     
         return monitor_results

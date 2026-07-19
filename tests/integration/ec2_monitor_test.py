@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from braket.circuits import Circuit
 from braket.devices import LocalSimulator
-from src.classes import ExperimentMonitor, InfrastructureMonitor
+from src.classes import Monitor
 
 ec2_client = boto3.client("ec2")
 
@@ -43,5 +43,17 @@ def quantum_rng(n_bits, shots=10000):
 
 # Test
 
-experiment_monitor = ExperimentMonitor()
-experiment_monitor.monitor_cloud(sts, quantum_rng)
+experiment_monitor = Monitor()
+experiment_monitor.config.creds.ec2_client = boto3.client(
+    "ec2",
+    os.environ.get("AWS_ACCESS_KEY"),
+    os.environ.get("AWS_SECRET_KEY"),
+    os.environ.get("AWS_DEFAULT_REGION"),
+)
+experiment_monitor.config.creds.cw_client = boto3.client(
+    "cloudwatch",
+    os.environ.get("AWS_ACCESS_KEY"),
+    os.environ.get("AWS_SECRET_KEY"),
+    os.environ.get("AWS_DEFAULT_REGION"),
+)
+experiment_monitor.monitor_cloud(experiment_monitor.config.creds, quantum_rng)

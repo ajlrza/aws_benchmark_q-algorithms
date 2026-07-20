@@ -4,6 +4,7 @@ import platform
 import json
 import base64
 import os
+import uuid
 import requests
 from QMonitor.config.master_config import Config
 from datetime import datetime, timezone
@@ -19,8 +20,7 @@ class Logger:
         self.config = Config()
         self.benchmark_type = benchmark_type
 
-        self.experiment_count = 0
-        self.config.exp.experiment_id = "QWorld 2026" + f"00{self.experiment_count}"
+        self.config.exp.experiment_id = f"QWorld_2026_{uuid.uuid4().hex[:8]}"
         self.config.exp.benchmark_type = benchmark_type
         self.config.exp.timestamp = str(datetime.now(timezone.utc).isoformat())
         self.config.exp.simulator = "LocalSimulator"
@@ -43,17 +43,9 @@ class Logger:
         else:
             self.config.env.instance_type = ""
 
-        get_experiment_params = {}
-
-        if (self.local_results == None):
-            get_experiment_params = self.cloud_results.get("Parameters", {})
-        elif (self.cloud_results == None):
-            get_experiment_params = self.local_results.get("Parameters", {})
-        elif (self.cloud_results != None and self.local_results != None):
-            get_experiment_params = {
-                "local_monitored_params": self.local_results.get("Parameters", {}),
-                "cloud_monitored_params": self.cloud_results.get("Parameters", {})
-            }
+        local_params = self.local_results.get("Parameters", {}) if self.local_results else {}
+        cloud_params = self.cloud_results.get("Parameters", {}) if self.cloud_results else {}
+        get_experiment_params = local_params or cloud_params
 
         results_dataclass = Results(Config=asdict(self.config), Metrics={})
         
@@ -62,28 +54,16 @@ class Logger:
         if self.cloud_results:
             results_dataclass.Metrics["Cloud_Monitor"] = self.cloud_results
 
+        dict_config = asdict(self.config)
+        excluded = {'creds', 'exp'}
+        final_experiment_log = {k: v for k, v in dict_config.items() if k not in excluded}
+        results_dataclass.Config = final_experiment_log
+
         for key, value in get_experiment_params.items():
-            if (len(get_experiment_params.keys()) == 1):
-                dict_config = asdict(self.config)
-                excluded = {'creds', 'exp'}
-                final_experiment_log = {k: v for k, v in dict_config.items() if k not in excluded}
-                results_dataclass.Config = final_experiment_log
-
-                if hasattr(self.config.circ, key):
-                    results_dataclass.Metrics[key] = value
-                elif hasattr(self.config.circ.gates, key):
-                    results_dataclass.Metrics[key] = value
-                    
-            elif (len(get_experiment_params.keys()) == 2):
-                dict_config = asdict(self.config)
-                excluded = {'creds', 'exp'}
-                final_experiment_log = {k: v for k, v in dict_config.items() if k not in excluded}
-                results_dataclass.Config = final_experiment_log
-
-                if hasattr(self.config.circ, key):
-                    results_dataclass.Metrics[key] = value
-                elif hasattr(self.config.circ.gates, key):
-                    results_dataclass.Metrics[key] = value
+            if hasattr(self.config.circ, key):
+                results_dataclass.Metrics[key] = value
+            elif hasattr(self.config.circ.gates, key):
+                results_dataclass.Metrics[key] = value
 
         final_payload = asdict(results_dataclass)
 

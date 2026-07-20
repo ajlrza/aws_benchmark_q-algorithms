@@ -1,4 +1,3 @@
-# logger.py
 from dataclasses import asdict
 import braket._sdk as braket_sdk
 import platform
@@ -14,8 +13,8 @@ class Logger:
     def __init__(
         self, monitored_results, notes, benchmark_type
     ):
-        self.local_results: dict | None  = monitored_results.get("Local Machine Experiment Metrics")
-        self.cloud_results: dict | None = monitored_results.get("Cloud Machine Data")
+        self.local_results = monitored_results if "Local Machine Experiment Metrics" in monitored_results else None
+        self.cloud_results = monitored_results if "EC2 Instance Experiment Metrics" in monitored_results else None
         
         self.config = Config()
         self.benchmark_type = benchmark_type
@@ -38,9 +37,9 @@ class Logger:
         self.config.env.python_version = platform.python_version()
 
     def Log(self):
-        if self.cloud_results and "ec2_instance_attributes" in self.cloud_results:
-            first_instance_key = list(self.cloud_results["ec2_instance_attributes"].keys())[0]
-            self.config.env.instance_type = self.cloud_results["ec2_instance_attributes"][first_instance_key].get("Instance", "")
+        if self.cloud_results and "EC2 Instance Experiment Metrics" in self.cloud_results and "ec2_instance_attributes" in self.cloud_results["EC2 Instance Experiment Metrics"]:
+            first_instance_key = list(self.cloud_results["EC2 Instance Experiment Metrics"]["ec2_instance_attributes"].keys())[0]
+            self.config.env.instance_type = self.cloud_results["EC2 Instance Experiment Metrics"]["ec2_instance_attributes"][first_instance_key].get("Instance", "")
         else:
             self.config.env.instance_type = ""
 

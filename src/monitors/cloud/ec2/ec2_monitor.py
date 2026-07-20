@@ -1,4 +1,3 @@
-# ec2_monitor.py
 import os, boto3
 from datetime import datetime, timezone, timedelta
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
@@ -101,7 +100,6 @@ def ec2_instance_monitor(config, experiment_function, experiment_params):
     }
 
     return ec2_logged_data
-
 
 def ec2_machine_cloud_monitor(config, experiment_function, experiment_params):
     infra_metrics = [
@@ -216,10 +214,35 @@ def ec2_machine_cloud_monitor(config, experiment_function, experiment_params):
                 "time_used": str(compute_time_used),
             }
 
-    for metric in infra_metrics:
-        if metric == "mem_used_percent":
-            ram_response = cw_client_instance.get_metric_statistics(
-                Namespace="CWAgent",
+    if detected_instance_id:
+        for metric in infra_metrics:
+            if metric == "mem_used_percent":
+                ram_response = cw_client_instance.get_metric_statistics(
+                    Namespace="CWAgent",
+                    MetricName=metric,
+                    Dimensions=[{"Name": "InstanceId", "Value": detected_instance_id}],
+                    StartTime=datetime.now(timezone.utc) - timedelta(minutes=5),
+                    EndTime=datetime.now(timezone.utc),
+                    Period=300,
+                    Statistics=["Average"],
+                )
+
+                if not ram_response.get("Datapoints"):
+                    ram_response["Average"] = 0.0
+                else:
+                    datapoints_count = len(ram_response["Datapoints"])
+                    sum_datapoints = []
+                    for i in range(0, datapoints_count):
+                        sum_datapoints.append(ram_response["Datapoints"][i]["Average"])
+                    ram_average = sum(sum_datapoints) / len(sum_datapoints)
+
+                    ram_response["RAM Summed Average"] = ram_average
+                    infra_results.append(ram_response)
+                continue
+
+            average = 0
+            metrics = cw_client_instance.get_metric_statistics(
+                Namespace="AWS/EC2",
                 MetricName=metric,
                 Dimensions=[{"Name": "InstanceId", "Value": detected_instance_id}],
                 StartTime=datetime.now(timezone.utc) - timedelta(minutes=5),
@@ -228,40 +251,17 @@ def ec2_machine_cloud_monitor(config, experiment_function, experiment_params):
                 Statistics=["Average"],
             )
 
-            if not ram_response["Datapoints"]:
-                ram_response["Average"] = 0.0
+            if not metrics.get("Datapoints"):
+                metrics["Average"] = 0.0
             else:
-                datapoints_count = len(ram_response["Datapoints"])
+                datapoints_count = len(metrics["Datapoints"])
                 sum_datapoints = []
                 for i in range(0, datapoints_count):
-                    sum_datapoints.append(ram_response["Datapoints"][i]["Average"])
-                ram_average = sum(sum_datapoints) / len(sum_datapoints)
+                    sum_datapoints.append(metrics["Datapoints"][i]["Average"])
+                average = sum(sum_datapoints) / len(sum_datapoints)
 
-            ram_response["RAM Summed Average"] = ram_average
-            infra_results.append(ram_response)
-
-        average = 0
-        metrics = cw_client_instance.get_metric_statistics(
-            Namespace="AWS/EC2",
-            MetricName=metric,
-            Dimensions=[{"Name": "InstanceId", "Value": detected_instance_id}],
-            StartTime=datetime.now(timezone.utc) - timedelta(minutes=5),
-            EndTime=datetime.now(timezone.utc),
-            Period=300,
-            Statistics=["Average"],
-        )
-
-        if not metrics["Datapoints"]:
-            metrics["Average"] = 0.0
-        else:
-            datapoints_count = len(metrics["Datapoints"])
-            sum_datapoints = []
-            for i in range(0, datapoints_count):
-                sum_datapoints.append(metrics["Datapoints"][i]["Average"])
-            average = sum(sum_datapoints) / len(sum_datapoints)
-
-        metrics[f"{metric} Summed Average"] = average
-        infra_results.append(metrics)
+            metrics[f"{metric} Summed Average"] = average
+            infra_results.append(metrics)
 
     ec2_logged_metrics = {
         "infrastructure_metrics": infra_results,

@@ -127,6 +127,7 @@ log_to_repo(
         "Cloud Machine Data": None,                
         "Local Machine Experiment Metrics": local_metrics
     },
+    simulator_name="LocalSimulator",
     notes="Local QRNG benchmark testing.",
     benchmark_type="QRNG"
 )
@@ -148,6 +149,7 @@ log_to_repo(
         "Cloud Machine Data": cloud_metrics,
         "Local Machine Experiment Metrics": None
     },
+    simulator_name="SV1",
     notes="Cloud QRNG benchmark testing on AWS infrastructure.",
     benchmark_type="QRNG"
 )

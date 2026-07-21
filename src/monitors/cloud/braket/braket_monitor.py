@@ -1,19 +1,9 @@
-import boto3, os, threading, sys
+import boto3, os, sys
 from QMonitor.classes import Monitor
 from braket.aws import AwsSession
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 
-class ReturnableThread(threading.Thread):
-    def __init__(self, target, args=()):
-        super().__init__()
-        self.target = target
-        self.args = args
-        self.result = None
-
-    def run(self):
-        self.result = self.target(*self.args)
-
-def experiment_braket_monitor(config, experiment_function, experiment_params):
+def experiment_braket_monitor(config, experiment_function, experiment_params, run_result):
     device = None
 
     try:
@@ -28,7 +18,7 @@ def experiment_braket_monitor(config, experiment_function, experiment_params):
             )
         except NoCredentialsError:
             local_monitor = Monitor()
-            return local_monitor.monitor_local(experiment_function, experiment_params)
+            return local_monitor.monitor_local(experiment_function, **experiment_params)
     except NoCredentialsError:
         try:
             cw_new_client = boto3.client(
@@ -39,19 +29,13 @@ def experiment_braket_monitor(config, experiment_function, experiment_params):
             )
         except NoCredentialsError:
             local_monitor = Monitor()
-            return local_monitor.monitor_local(experiment_function, experiment_params)
+            return local_monitor.monitor_local(experiment_function, **experiment_params)
     except EndpointConnectionError:
         local_monitor = Monitor()
-        return local_monitor.monitor_local(experiment_function, experiment_params)
+        return local_monitor.monitor_local(experiment_function, **experiment_params)
 
     usage_results = {}
     infra_results = {}
-
-    thread = ReturnableThread(experiment_function, args=(experiment_params,))
-    thread.start()
-    thread.join(timeout=1)
-
-    run_result = thread.result
 
     task_arn = getattr(run_result, "task_metadata", run_result).id if hasattr(run_result, "task_metadata") else getattr(run_result, "id", "")
     device_arn = getattr(run_result, "task_metadata", run_result).deviceId if hasattr(run_result, "task_metadata") else ""
@@ -93,7 +77,6 @@ def experiment_braket_monitor(config, experiment_function, experiment_params):
     limits_list = braket_usage.get("spendingLimits", [])
 
     if (len(limits_list) >= 1):
-
         for limit in limits_list:
             usage_results["spending_limit"] = limit["spendingLimitArn"]
             usage_results["device_arn"] = limit["deviceArn"]
@@ -116,4 +99,3 @@ def experiment_braket_monitor(config, experiment_function, experiment_params):
         "Braket Infrastructure Metrics": infra_results,
         "Braket Usage Metrics": usage_results
     }
-       

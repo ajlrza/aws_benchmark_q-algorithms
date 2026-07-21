@@ -19,7 +19,7 @@ def ec2_instance_monitor(config, experiment_function, experiment_params):
         except NoCredentialsError:
             from QMonitor.classes import Monitor
             local_monitor = Monitor()
-            return local_monitor.monitor_local(experiment_function, experiment_params)
+            return local_monitor.monitor_local(experiment_function, **experiment_params)
     except NoCredentialsError:
         try:
             cw_client_instance = boto3.client(
@@ -31,11 +31,11 @@ def ec2_instance_monitor(config, experiment_function, experiment_params):
         except NoCredentialsError:
             from QMonitor.classes import Monitor
             local_monitor = Monitor()
-            return local_monitor.monitor_local(experiment_function, experiment_params)
+            return local_monitor.monitor_local(experiment_function, **experiment_params)
     except EndpointConnectionError:
         from QMonitor.classes import Monitor
         local_monitor = Monitor()
-        return local_monitor.monitor_local(experiment_function, experiment_params)
+        return local_monitor.monitor_local(experiment_function, **experiment_params)
 
     instance_types = config.creds["ec2_client"].describe_instance_types(
         InstanceTypes=["t3.micro", "m5.large"]
@@ -91,7 +91,7 @@ def ec2_machine_cloud_monitor(config, experiment_function, experiment_params):
         except NoCredentialsError:
             from QMonitor.classes import Monitor
             local_monitor = Monitor()
-            return local_monitor.monitor_local(experiment_function, experiment_params)
+            return local_monitor.monitor_local(experiment_function, **experiment_params)
     except NoCredentialsError:
         try:
             cw_new_client = boto3.client(
@@ -104,13 +104,11 @@ def ec2_machine_cloud_monitor(config, experiment_function, experiment_params):
         except NoCredentialsError:
             from QMonitor.classes import Monitor
             local_monitor = Monitor()
-            return local_monitor.monitor_local(experiment_function, experiment_params)
+            return local_monitor.monitor_local(experiment_function, **experiment_params)
     except EndpointConnectionError:
         from QMonitor.classes import Monitor
         local_monitor = Monitor()
-        return local_monitor.monitor_local(experiment_function, experiment_params)
-
-    experiment_function(**experiment_params)
+        return local_monitor.monitor_local(experiment_function, **experiment_params)
 
     ec2_usage = config.creds["ec2_client"].describe_instances(
         Filters=[{"Name": "instance-state-name", "Values": ["running"]}]

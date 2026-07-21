@@ -73,6 +73,9 @@ class Logger:
         owner = os.environ.get("GITHUB_USERNAME")
         repo = os.environ.get("REPOSITORY_NAME")
 
+        if not token or not owner or not repo:
+            return
+
         path = f"test_logs/ec2_monitor_test_{datetime.now().isoformat()}"
         branch = "main"
 
@@ -93,5 +96,8 @@ class Logger:
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
-        response = requests.put(url, json=payload, headers=headers, timeout=5)
-        print(response)
+        try:
+            response = requests.put(url, json=payload, headers=headers, timeout=5)
+            print(response)
+        except requests.exceptions.RequestException:
+            pass

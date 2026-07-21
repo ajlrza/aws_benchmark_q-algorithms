@@ -32,6 +32,7 @@ def local_user_monitor(experiment_function: Callable, params: Dict[str, Any]):
             psutil.disk_io_counters()
         )
 
+    thread.join(timeout=1)
     monitor_results["Datetime"] = str(datetime.now(timezone.utc))
 
     print(monitor_results)

@@ -45,27 +45,22 @@ def quantum_rng(n_bits, shots=10000):
     device = LocalSimulator()
     result = device.run(circuit, shots=shots).result()
 
-    return result.measurement_counts
+    return result
 
 
 # Test
 
 experiment_monitor = Monitor()
+experiment = quantum_rng(n_bits=5, shots=10000)
 
-experiment_monitor.config.creds.ec2_client = boto3.client(
-    "ec2",
-    os.environ.get("AWS_ACCESS_KEY"),
-    os.environ.get("AWS_SECRET_KEY"),
-    os.environ.get("AWS_DEFAULT_REGION"),
+experiment_monitor_local = experiment_monitor.monitor_local(
+    quantum_rng(n_bits=5, shots=10000)
 )
 
-experiment_monitor.config.creds.cw_client = boto3.client(
-    "cloudwatch",
-    os.environ.get("AWS_ACCESS_KEY"),
-    os.environ.get("AWS_SECRET_KEY"),
-    os.environ.get("AWS_DEFAULT_REGION"),
+experiment_monitor_cloud_ec2 = experiment_monitor.monitor_cloud(
+    experiment_monitor.config, quantum_rng(n_bits=5, shots=10000)
 )
 
-experiment_monitor = experiment_monitor.monitor_cloud(
-    experiment_monitor.config.creds, quantum_rng
+experiment_monitor_cloud_braket = experiment_monitor.monitor_cloud(
+    experiment_monitor.config, quantum_rng(n_bits=5, shots=10000), experiment
 )

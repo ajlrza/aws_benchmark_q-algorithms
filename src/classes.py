@@ -10,6 +10,7 @@ from .monitors.cloud.ec2.ec2_monitor import (
     ec2_machine_cloud_monitor,
     ec2_instance_monitor,
 )
+from .monitors.cloud.braket.braket_monitor import experiment_braket_monitor
 
 class Monitor:
     def __init__(self, aws_access_key_id=None, aws_secret_access_key=None, region_name=None):
@@ -35,7 +36,8 @@ class Monitor:
         self.experiment_id = "QIntern26 Experiment"
         print(f"Start Time: {self.start_time}")
 
-    def monitor_local(self, experiment_function, params: dict):
+    def monitor_local(self, experiment_function):
+        params = self.__get_params(experiment_function)
         local_monitor = local_user_monitor(experiment_function, params)
 
         local_results = {}
@@ -44,10 +46,13 @@ class Monitor:
 
         return local_results
 
-    def monitor_cloud(self, config, experiment_function, params: dict):
+    def monitor_cloud(self, config, experiment_function):
+        params = self.__get_params(experiment_function)
         cloud_results = {}
+
         experiment_cloud_monitor_ec2 = ec2_machine_cloud_monitor(config, experiment_function, params)
         experiment_cloud_ec2_metrics = ec2_instance_monitor(config, experiment_function, params)
+        experiment_cloud_braket_metrics = experiment_braket_monitor(config, experiment_function, params)
 
         cloud_results["EC2 Machine Experiment Metrics"] = experiment_cloud_monitor_ec2
         cloud_results["EC2 Instance Experiment Metrics"] = experiment_cloud_ec2_metrics

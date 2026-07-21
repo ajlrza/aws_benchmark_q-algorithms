@@ -1,9 +1,19 @@
-import boto3, os
+import boto3, os, threading, sys
 from QMonitor.classes import Monitor
 from braket.aws import AwsSession
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 
-def experiment_braket_monitor(config, experiment_function, run_result, experiment_params):
+class ReturnableThread(threading.Thread):
+    def __init__(self, target, args=()):
+        super().__init__()
+        self.target = target
+        self.args = args
+        self.result = None
+
+    def run(self):
+        self.result = self.target(*self.args)
+
+def experiment_braket_monitor(config, experiment_function, experiment_params):
     device = None
 
     try:
@@ -36,6 +46,12 @@ def experiment_braket_monitor(config, experiment_function, run_result, experimen
 
     usage_results = {}
     infra_results = {}
+
+    thread = ReturnableThread(experiment_function, args=(experiment_params,))
+    thread.start()
+    thread.join(timeout=1)
+
+    run_result = thread.result
 
     task_arn = getattr(run_result, "task_metadata", run_result).id if hasattr(run_result, "task_metadata") else getattr(run_result, "id", "")
     device_arn = getattr(run_result, "task_metadata", run_result).deviceId if hasattr(run_result, "task_metadata") else ""
@@ -76,21 +92,23 @@ def experiment_braket_monitor(config, experiment_function, run_result, experimen
 
     limits_list = braket_usage.get("spendingLimits", [])
 
-    for limit in limits_list:
-        limit["spendingLimitArn"]
-        limit["deviceArn"]
-        limit["createdAt"]
-        start_time = limit["timePeriod"]["startAt"]
-        end_time = limit["timePeriod"]["endAt"]
-        max_budget = float(limit["spendingLimit"])
-        queued_cost = float(limit["queuedSpend"])
-        actual_spent = float(limit["totalSpend"])
-        remaining_budget = max_budget - (actual_spent + queued_cost)
-        if remaining_budget <= max_budget - 100:
-            limit["Warning"] = True
-        braket_usage["trackingPeriod"] = (start_time, end_time)
+    if (len(limits_list) >= 1):
 
-    usage_results["Braket_usage"] = braket_usage
+        for limit in limits_list:
+            usage_results["spending_limit"] = limit["spendingLimitArn"]
+            usage_results["device_arn"] = limit["deviceArn"]
+            usage_results["created_at"] = limit["createdAt"]
+            max_budget = float(limit["spendingLimit"])
+            queued_cost = float(limit["queuedSpend"])
+            actual_spent = float(limit["totalSpend"])
+            remaining_budget = max_budget - (actual_spent + queued_cost)
+            if remaining_budget <= max_budget - 100:
+                usage_results["Warning"] = True
+                usage_results["remaining_budget"] = remaining_budget
+            usage_results["remaining_budget"] = remaining_budget
+            braket_usage["tracking_period"] = (limit["timePeriod"]["startAt"], limit["timePeriod"]["endAt"])
+    else:
+        print("Limits list does not exist")
 
     print(infra_results, usage_results)
     

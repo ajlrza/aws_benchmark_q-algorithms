@@ -17,7 +17,7 @@ def local_user_monitor(experiment_function: Callable, params: Dict[str, Any]):
         print("Experiment function is currently running,.")
         time.sleep(0.5)
 
-        if monitor_results.get("Total Local RAM Usage", 0.0) >= 98.00:
+        if psutil.virtual_memory().percent >= 98.00:
             print("Out Of Memory Risk...")
             print("Sleeping for 10 seconds..")
             time.sleep(10)
@@ -29,7 +29,7 @@ def local_user_monitor(experiment_function: Callable, params: Dict[str, Any]):
             psutil.virtual_memory().percent
         )
         monitor_results[f"Local I/O Disk Latency: Thread {thread_count}"] = (
-            psutil.disk_io_counters()
+            psutil.disk_io_counters()._asdict()
         )
 
     thread.join(timeout=1)

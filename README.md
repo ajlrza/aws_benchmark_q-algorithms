@@ -69,7 +69,7 @@ Before using QMonitor, ensure your environment meets the following requirements:
 You can install the `QMonitor` package directly from the Git repository using pip.
 
 ```bash
-pip install git+[https://github.com/ajlrza/qintern2026-project-infrastructure.git](https://github.com/ajlrza/qintern2026-project-infrastructure.git)
+pip install git+https://github.com/ajlrza/qintern2026-project-infrastructure.git
 ```
 
 # QMonitor Example Usage 

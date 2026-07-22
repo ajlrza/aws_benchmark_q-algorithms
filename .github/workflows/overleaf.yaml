@@ -1,9 +1,0 @@
-on:
-    pull:
-        branches:
-            - remote
-
-jobs:
-
-    name: overleaf-workflow
-

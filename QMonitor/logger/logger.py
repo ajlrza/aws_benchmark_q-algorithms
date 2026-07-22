@@ -76,14 +76,13 @@ class Logger:
             return
 
         # Safe environment fallback for LOG_PATH
-        log_prefix = os.environ.get("LOG_PATH", "test_logs/ec2_monitor_test_")
+        log_prefix = os.environ.get("LOG_PATH", "log_result")
         path = f"{log_prefix}{datetime.now().isoformat()}"
         branch = "main"
 
         url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}.json"
 
-        # Pass default=str to safely serialize datetime objects
-        file_content = json.dumps(final_payload, indent=2, default=str)
+        file_content = json.dumps(final_payload, indent=2)
         encoded_content = base64.b64encode(file_content.encode("utf-8")).decode("utf-8")
 
         payload = {

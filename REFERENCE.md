@@ -34,8 +34,6 @@ The following are the available modules from the QMonitor Package:
 | Parameter | Type  | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `config` | `Object` | Yes | Initiated config dataclass for centralized credential management. |
-| `experiment_function` | `Callable` | Yes | Callable and uninstantiated experiment function. |
-| `experiment_params` | `Dict[str, Any]` | Yes | Experiment function parameters passed from helper function. |
 
 #### Return Value
 
@@ -51,8 +49,7 @@ The following are the available modules from the QMonitor Package:
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `config` | `Object` | Yes | Initiated config dataclass for centralized credential management. |
-| `experiment_function` | `Callable` | Yes | Callable and uninstantiated experiment function. |
-| `experiment_params` | `Dict[str, Any]` | Yes | Experiment function parameters passed from helper function. |
+
 
 #### Return Value
 
@@ -68,8 +65,6 @@ The following are the available modules from the QMonitor Package:
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `config` | `Object` | Yes | Initiated config dataclass containing the Boto3 Braket client. |
-| `experiment_function` | `Callable` | Yes | Callable and uninstantiated experiment function. |
-| `experiment_params` | `Dict[str, Any]` | Yes | Experiment function parameters passed from helper function. |
 | `run_result` | `Any` | Yes | The actual object/response returned by the quantum experiment thread. |
 
 #### Return Value

@@ -130,9 +130,7 @@ logger.Log()
 ```python
 # Step 3: Execute and Monitor (Cloud)
 cloud_metrics = experiment_monitor.monitor_cloud(
-    experiment_monitor.config, 
-    quantum_rng,
-    **experiment_params
+    experiment_monitor.config,
 )
 
 print("Monitoring Complete. Results:", cloud_metrics)

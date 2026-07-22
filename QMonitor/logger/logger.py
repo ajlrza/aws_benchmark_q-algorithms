@@ -3,7 +3,7 @@ import braket._sdk as braket_sdk
 import platform, json, base64, os, uuid, requests
 from QMonitor.config.master_config import Config
 from datetime import datetime, timezone
-from QMonitor.results import Results
+from .results import Results
 
 class Logger:
     def __init__(

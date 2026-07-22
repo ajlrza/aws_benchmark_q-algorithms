@@ -82,7 +82,7 @@ class Logger:
 
         url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}.json"
 
-        file_content = json.dumps(final_payload, indent=2)
+        file_content = json.dumps(final_payload, indent=2, default=str)
         encoded_content = base64.b64encode(file_content.encode("utf-8")).decode("utf-8")
 
         payload = {

@@ -3,7 +3,7 @@
 
 > [!IMPORTANT]
 > **Note on AWS Billing & Cost Safety:** 
-> **Set Native AWS Budgets:** Always set hard budget alerts and spending limits directly inside your AWS Billing Dashboard on the AWS Console. AWS is the only entity that can physically block a paid request from executing when a budget cap is hit; a Python monitoring package cannot block it for you.
+> **Set Native AWS Budgets:** Always set hard budget alerts and spending limits directly inside your AWS Billing Dashboard on the AWS Console. QMonitor cannot requests when budget limit is hit and is only used as monitoring and logging tool.
 
 This repository contains the infrastructure for the
 **QWorld Qinternship 2026 - Project 26**
